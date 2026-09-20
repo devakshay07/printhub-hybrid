@@ -20,12 +20,43 @@ TEMP_DIR = "temp_print_spool"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 # In-memory tracker for active CUPS print jobs
-# Format: { 'job_id': 'order_id' }
+# Format: { 'job_id': {'order_id': '...', 'file_path': '...'} }
 active_print_jobs = {}
+
+def purge_cloud_storage():
+    """Sweeps Supabase for Printed orders older than 24h and nukes their files."""
+    try:
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        
+        # Fetch printed orders
+        res = supabase.table('orders').select('id, created_at, status').eq('status', 'Printed').execute()
+        for order in res.data:
+            created = datetime.fromisoformat(order['created_at'].replace('Z', '+00:00'))
+            if created < cutoff:
+                # Time to purge
+                print(f"[Cost Control] Purging cloud files for order {order['id']}")
+                f_res = supabase.table('order_files').select('storage_path').eq('order_id', order['id']).execute()
+                paths = [f['storage_path'] for f in f_res.data if f['storage_path'] != 'PURGED']
+                
+                if paths:
+                    supabase.storage.from_('print-files').remove(paths)
+                    supabase.table('order_files').update({'storage_path': 'PURGED'}).eq('order_id', order['id']).execute()
+                
+                # Mark as archived so we don't sweep it again
+                supabase.table('orders').update({'status': 'Archived (Purged)'}).eq('id', order['id']).execute()
+    except Exception as e:
+        print(f"[Cost Control Error] {str(e)}")
 
 def monitor_printer():
     """Background thread that polls CUPS lpstat to see if jobs are done."""
+    last_sweep = 0
     while True:
+        # Run cloud purge sweep every hour
+        if time.time() - last_sweep > 3600:
+            purge_cloud_storage()
+            last_sweep = time.time()
+
         if active_print_jobs:
             try:
                 # Get all currently pending/processing jobs in CUPS
@@ -34,9 +65,16 @@ def monitor_printer():
 
                 # Check our tracked jobs against the active CUPS queue
                 jobs_to_remove = []
-                for job_id, order_id in active_print_jobs.items():
+                for job_id, job_data in active_print_jobs.items():
                     if job_id not in active_cups_jobs:
-                        # Job is no longer in the queue -> it finished (or failed/canceled)
+                        order_id = job_data['order_id']
+                        file_path = job_data['file_path']
+                        
+                        # Job finished. Nuke the local file immediately.
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            print(f"[Cost Control] Local spool file {file_path} shredded.")
+                            
                         print(f"[Telemetry] Job {job_id} finished printing. Updating Supabase...")
                         supabase.table('orders').update({'status': 'Printed'}).eq('id', order_id).execute()
                         jobs_to_remove.append(job_id)
@@ -140,7 +178,7 @@ def print_file(file_id):
         if match:
             job_id = match.group(1)
             print(f"[Telemetry] Tracked new hardware job: {job_id}")
-            active_print_jobs[job_id] = order_id
+            active_print_jobs[job_id] = {'order_id': order_id, 'file_path': local_filename}
             # Set status to Printing in Supabase so frontend knows it started
             supabase.table('orders').update({'status': 'Printing...'}).eq('id', order_id).execute()
             
