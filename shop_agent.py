@@ -78,6 +78,22 @@ def update_status(order_id):
     supabase.table('orders').update({'status': status}).eq('id', order_id).execute()
     return redirect(url_for('dashboard'))
 
+@app.route('/verify_otp/<order_id>', methods=['POST'])
+def verify_otp(order_id):
+    submitted_otp = request.form.get('otp', '').strip()
+    # Fetch real OTP from DB
+    res = supabase.table('orders').select('otp').eq('id', order_id).execute()
+    if not res.data:
+        return "Order not found", 404
+        
+    real_otp = res.data[0].get('otp')
+    if submitted_otp == real_otp:
+        supabase.table('orders').update({'otp_verified': True}).eq('id', order_id).execute()
+        return redirect(url_for('dashboard'))
+    else:
+        # In a real app we'd flash an error, but simple text return for hacking speed
+        return "INCORRECT PIN - Nice try ghost.", 403
+
 @app.route('/print/<file_id>', methods=['POST'])
 def print_file(file_id):
     try:

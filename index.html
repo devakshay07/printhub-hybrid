@@ -244,10 +244,13 @@ async function submitOrder() {
 
         overlayText.textContent = 'Creating Order...';
         
+        // Generate Anti-Ghosting OTP
+        const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
+        
         // 1. Create Order in Supabase
         const { data: orderData, error: orderErr } = await supabase
             .from('orders')
-            .insert([{ customer_name: name, customer_email: email, customer_phone: phone, notes: document.getElementById('c_notes').value, total_amount: totalAmount }])
+            .insert([{ customer_name: name, customer_email: email, customer_phone: phone, notes: document.getElementById('c_notes').value, total_amount: totalAmount, otp: otpCode }])
             .select();
             
         if (orderErr) throw orderErr;
@@ -292,7 +295,7 @@ async function submitOrder() {
 
         overlayText.textContent = 'Order Complete!';
         setTimeout(() => {
-            alert('Your order has been sent to the print shop!');
+            alert(`Your order is placed! Your Pickup PIN is: ${otpCode}\n\nDo not lose this PIN, you need it to print at the shop.`);
             window.location.reload();
         }, 1000);
 
