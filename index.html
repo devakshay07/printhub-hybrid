@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INSTAPRINTX — Cloud Print Service</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+<style>
+:root{--bg:#EAEFEF;--surface:#BFC9D1;--surface2:#1e1e1e;--border:#282828;--accent:#FF9B51;--text:#25343F;--muted:#555;--danger:#ff4d4d;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:14px;}
+.container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+h1 { font-family:'Bebas Neue',sans-serif; font-size:3rem; letter-spacing:0.05em; color:var(--text); margin-bottom: 0.5rem;}
+h1 span { color: var(--accent); }
+.upload-zone { border: 2px dashed var(--border); padding: 3rem; text-align: center; cursor: pointer; background: var(--surface); border-radius: 12px; margin-bottom: 2rem; transition: 0.2s; }
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: #b4bfc7; }
+.file-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; display: grid; gap: 1rem; grid-template-columns: 1fr auto; }
+.file-details h4 { margin-bottom: 0.5rem; word-break: break-all; }
+.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; }
+.config-item { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; }
+.config-item label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; }
+input, select { padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; }
+.btn { padding: 0.6rem 1.2rem; background: var(--accent); color: #000; border: none; border-radius: 6px; cursor: pointer; font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 0.1em; transition: 0.2s; }
+.btn:hover { opacity: 0.9; }
+.btn-remove { background: none; color: var(--danger); font-family: inherit; font-size: 0.8rem; letter-spacing: normal; }
+.customer-form { background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 2rem; display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
+.customer-form input { width: 100%; }
+.full-width { grid-column: 1 / -1; }
+#overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); color: white; align-items: center; justify-content: center; flex-direction: column; z-index: 100; }
+.loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 1rem; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>INSTAPRINT<span>X</span> - CLOUD</h1>
+    <p style="margin-bottom: 2rem; color: var(--muted);">Upload files, select specific pages, configure print settings, and send directly to the shop's printer.</p>
+    
+    <div class="upload-zone" id="dropzone" onclick="document.getElementById('file-input').click()">
+        <h2>Drag & Drop PDFs or Images here</h2>
+        <p style="color: var(--muted); margin-top: 0.5rem;">Or click to browse</p>
+        <input type="file" id="file-input" multiple accept=".pdf,.png,.jpg,.jpeg" style="display:none">
+    </div>
+
+    <div id="file-list"></div>
+
+    <div class="customer-form">
+        <div class="config-item">
+            <label>Full Name</label>
+            <input type="text" id="c_name" placeholder="John Doe">
+        </div>
+        <div class="config-item">
+            <label>Phone Number</label>
+            <input type="tel" id="c_phone" placeholder="+1 234 567 8900">
+        </div>
+        <div class="config-item full-width">
+            <label>Email Address</label>
+            <input type="email" id="c_email" placeholder="john@example.com">
+        </div>
+        <div class="config-item full-width">
+            <label>Any special notes?</label>
+            <input type="text" id="c_notes" placeholder="Bind them together, etc...">
+        </div>
+    </div>
+
+    <div style="text-align: right;">
+        <h2 style="margin-bottom: 1rem;">Total: <span id="total-price" style="color: var(--accent);">₹0.00</span></h2>
+        <button class="btn" id="submit-btn" onclick="submitOrder()">Submit Order to Print Shop →</button>
+    </div>
+</div>
+
+<div id="overlay">
+    <div class="loader"></div>
+    <h2 id="overlay-text">Processing...</h2>
+</div>
+
+<!-- ========================================== -->
+<!-- UPDATE THESE WITH YOUR REAL SUPABASE KEYS  -->
+<!-- ========================================== -->
+<script>
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let filesData = [];
+
+// Base Rates
+const RATES = { bw: 1.0, color: 5.0, base_paper: 0 };
+
+document.getElementById('file-input').addEventListener('change', (e) => handleFiles(e.target.files));
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+
+async function handleFiles(files) {
+    for (const file of files) {
+        let pageCount = 1;
+        if (file.type === 'application/pdf') {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+            pageCount = pdfDoc.getPageCount();
+        }
+        
+        filesData.push({
+            id: Math.random().toString(36).substr(2, 9),
+            originalFile: file,
+            name: file.name,
+            type: file.type,
+            totalPages: pageCount,
+            config: {
+                copies: 1,
+                colorMode: 'bw',
+                sides: 'single',
+                paper: 'Plain 75gsm',
+                pageRange: '' // Empty means all pages
+            }
+        });
+    }
+    renderFiles();
+}
+
+function renderFiles() {
+    const container = document.getElementById('file-list');
+    container.innerHTML = '';
+    
+    filesData.forEach((f, index) => {
+        const div = document.createElement('div');
+        div.className = 'file-card';
+        div.innerHTML = `
+            <div class="file-details">
+                <h4>${f.name} <span style="color:var(--muted); font-size:0.8em; font-weight:normal">(${f.totalPages} pages detected)</span></h4>
+                <div class="config-grid">
+                    <div class="config-item">
+                        <label>Copies</label>
+                        <input type="number" min="1" value="${f.config.copies}" onchange="updateConfig('${f.id}', 'copies', this.value)">
+                    </div>
+                    <div class="config-item">
+                        <label>Color</label>
+                        <select onchange="updateConfig('${f.id}', 'colorMode', this.value)">
+                            <option value="bw" ${f.config.colorMode === 'bw' ? 'selected' : ''}>Black & White</option>
+                            <option value="color" ${f.config.colorMode === 'color' ? 'selected' : ''}>Color</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <label>Sides</label>
+                        <select onchange="updateConfig('${f.id}', 'sides', this.value)">
+                            <option value="single" ${f.config.sides === 'single' ? 'selected' : ''}>Single Sided</option>
+                            <option value="double" ${f.config.sides === 'double' ? 'selected' : ''}>Double Sided</option>
+                        </select>
+                    </div>
+                    ${f.type === 'application/pdf' ? `
+                    <div class="config-item">
+                        <label>Pages (e.g. 1-3,5)</label>
+                        <input type="text" placeholder="All" value="${f.config.pageRange}" onchange="updateConfig('${f.id}', 'pageRange', this.value)">
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            <div>
+                <button class="btn btn-remove" onclick="removeFile('${f.id}')">Remove ✕</button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+    calculateTotal();
+}
+
+function updateConfig(id, key, value) {
+    const f = filesData.find(x => x.id === id);
+    if (f) f.config[key] = value;
+    calculateTotal();
+}
+
+function removeFile(id) {
+    filesData = filesData.filter(x => x.id !== id);
+    renderFiles();
+}
+
+function parsePageRange(rangeStr, totalPages) {
+    if (!rangeStr.trim()) return Array.from({length: totalPages}, (_, i) => i);
+    const pages = new Set();
+    const parts = rangeStr.split(',');
+    for (const part of parts) {
+        if (part.includes('-')) {
+            const [start, end] = part.split('-').map(n => parseInt(n.trim()));
+            if (!isNaN(start) && !isNaN(end)) {
+                for (let i = start; i <= end; i++) if (i >= 1 && i <= totalPages) pages.add(i - 1);
+            }
+        } else {
+            const num = parseInt(part.trim());
+            if (!isNaN(num) && num >= 1 && num <= totalPages) pages.add(num - 1);
+        }
+    }
+    return Array.from(pages).sort((a, b) => a - b);
+}
+
+function calculateTotal() {
+    let total = 0;
+    filesData.forEach(f => {
+        let pagesToPrint = f.totalPages;
+        if (f.type === 'application/pdf' && f.config.pageRange) {
+            pagesToPrint = parsePageRange(f.config.pageRange, f.totalPages).length;
+        }
+        const rate = f.config.colorMode === 'color' ? RATES.color : RATES.bw;
+        total += (pagesToPrint * f.config.copies * rate);
+    });
+    document.getElementById('total-price').textContent = '₹' + total.toFixed(2);
+}
+
+async function processPdf(fileObj, pageIndices) {
+    const arrayBuffer = await fileObj.arrayBuffer();
+    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+    const newPdf = await PDFLib.PDFDocument.create();
+    
+    const copiedPages = await newPdf.copyPages(pdfDoc, pageIndices);
+    copiedPages.forEach((page) => newPdf.addPage(page));
+    
+    const pdfBytes = await newPdf.save();
+    return new Blob([pdfBytes], { type: 'application/pdf' });
+}
+
+async function submitOrder() {
+    if (filesData.length === 0) return alert('Add some files first.');
+    const name = document.getElementById('c_name').value;
+    const phone = document.getElementById('c_phone').value;
+    const email = document.getElementById('c_email').value;
+    
+    if (!name || !phone) return alert('Name and phone are required.');
+    
+    const overlay = document.getElementById('overlay');
+    const overlayText = document.getElementById('overlay-text');
+    overlay.style.display = 'flex';
+    
+    try {
+        // Calculate Total
+        let totalAmount = 0;
+        filesData.forEach(f => {
+            let pCount = f.type === 'application/pdf' && f.config.pageRange ? parsePageRange(f.config.pageRange, f.totalPages).length : f.totalPages;
+            totalAmount += pCount * f.config.copies * (f.config.colorMode === 'color' ? RATES.color : RATES.bw);
+        });
+
+        overlayText.textContent = 'Creating Order...';
+        
+        // 1. Create Order in Supabase
+        const { data: orderData, error: orderErr } = await supabase
+            .from('orders')
+            .insert([{ customer_name: name, customer_email: email, customer_phone: phone, notes: document.getElementById('c_notes').value, total_amount: totalAmount }])
+            .select();
+            
+        if (orderErr) throw orderErr;
+        const orderId = orderData[0].id;
+
+        // 2. Process and Upload Files
+        for (let i = 0; i < filesData.length; i++) {
+            const f = filesData[i];
+            overlayText.textContent = `Processing & Uploading File ${i+1}/${filesData.length}...`;
+            
+            let finalBlob = f.originalFile;
+            let finalPages = f.totalPages;
+            
+            // PDF Page extraction locally to save bandwidth
+            if (f.type === 'application/pdf' && f.config.pageRange) {
+                const pageIndices = parsePageRange(f.config.pageRange, f.totalPages);
+                if (pageIndices.length === 0) continue; // Skip if no pages valid
+                finalBlob = await processPdf(f.originalFile, pageIndices);
+                finalPages = pageIndices.length;
+            }
+            
+            const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            
+            // Upload to storage
+            const { error: uploadErr } = await supabase.storage.from('print-files').upload(storagePath, finalBlob);
+            if (uploadErr) throw uploadErr;
+            
+            // Log file config in DB
+            const { error: fileDbErr } = await supabase.from('order_files').insert([{
+                order_id: orderId,
+                file_name: f.name,
+                storage_path: storagePath,
+                pages: finalPages,
+                copies: parseInt(f.config.copies),
+                paper_type: f.config.paper,
+                color_mode: f.config.colorMode,
+                sides: f.config.sides,
+                page_range: f.config.pageRange || 'All'
+            }]);
+            if (fileDbErr) throw fileDbErr;
+        }
+
+        overlayText.textContent = 'Order Complete!';
+        setTimeout(() => {
+            alert('Your order has been sent to the print shop!');
+            window.location.reload();
+        }, 1000);
+
+    } catch (e) {
+        console.error(e);
+        alert('An error occurred: ' + e.message);
+        overlay.style.display = 'none';
+    }
+}
+</script>
+</body>
+</html>
