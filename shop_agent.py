@@ -30,21 +30,21 @@ def purge_cloud_storage():
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
         
         # Fetch printed orders
-        res = supabase.table('orders').select('id, created_at, status').eq('status', 'Printed').execute()
+        res = supabase.table('printhub_orders').select('id, created_at, status').eq('status', 'Printed').execute()
         for order in res.data:
             created = datetime.fromisoformat(order['created_at'].replace('Z', '+00:00'))
             if created < cutoff:
                 # Time to purge
                 print(f"[Cost Control] Purging cloud files for order {order['id']}")
-                f_res = supabase.table('order_files').select('storage_path').eq('order_id', order['id']).execute()
+                f_res = supabase.table('printhub_files').select('storage_path').eq('order_id', order['id']).execute()
                 paths = [f['storage_path'] for f in f_res.data if f['storage_path'] != 'PURGED']
                 
                 if paths:
                     supabase.storage.from_('print-files').remove(paths)
-                    supabase.table('order_files').update({'storage_path': 'PURGED'}).eq('order_id', order['id']).execute()
+                    supabase.table('printhub_files').update({'storage_path': 'PURGED'}).eq('order_id', order['id']).execute()
                 
                 # Mark as archived so we don't sweep it again
-                supabase.table('orders').update({'status': 'Archived (Purged)'}).eq('id', order['id']).execute()
+                supabase.table('printhub_orders').update({'status': 'Archived (Purged)'}).eq('id', order['id']).execute()
     except Exception as e:
         print(f"[Cost Control Error] {str(e)}")
 
@@ -76,7 +76,7 @@ def monitor_printer():
                             print(f"[Cost Control] Local spool file {file_path} shredded.")
                             
                         print(f"[Telemetry] Job {job_id} finished printing. Updating Supabase...")
-                        supabase.table('orders').update({'status': 'Printed'}).eq('id', order_id).execute()
+                        supabase.table('printhub_orders').update({'status': 'Printed'}).eq('id', order_id).execute()
                         jobs_to_remove.append(job_id)
                 
                 for j in jobs_to_remove:
@@ -94,11 +94,11 @@ telemetry_thread.start()
 @app.route('/')
 def dashboard():
     # Fetch orders
-    response = supabase.table('orders').select('*').order('created_at', desc=True).execute()
+    response = supabase.table('printhub_orders').select('*').order('created_at', desc=True).execute()
     orders = response.data
     
     # Fetch files for all these orders
-    files_res = supabase.table('order_files').select('*').execute()
+    files_res = supabase.table('printhub_files').select('*').execute()
     files_data = files_res.data
     
     # Group files by order_id
@@ -113,20 +113,20 @@ def dashboard():
 @app.route('/status/<order_id>', methods=['POST'])
 def update_status(order_id):
     status = request.form.get('status')
-    supabase.table('orders').update({'status': status}).eq('id', order_id).execute()
+    supabase.table('printhub_orders').update({'status': status}).eq('id', order_id).execute()
     return redirect(url_for('dashboard'))
 
 @app.route('/verify_otp/<order_id>', methods=['POST'])
 def verify_otp(order_id):
     submitted_otp = request.form.get('otp', '').strip()
     # Fetch real OTP from DB
-    res = supabase.table('orders').select('otp').eq('id', order_id).execute()
+    res = supabase.table('printhub_orders').select('otp').eq('id', order_id).execute()
     if not res.data:
         return "Order not found", 404
         
     real_otp = res.data[0].get('otp')
     if submitted_otp == real_otp:
-        supabase.table('orders').update({'otp_verified': True}).eq('id', order_id).execute()
+        supabase.table('printhub_orders').update({'otp_verified': True}).eq('id', order_id).execute()
         return redirect(url_for('dashboard'))
     else:
         # In a real app we'd flash an error, but simple text return for hacking speed
@@ -136,7 +136,7 @@ def verify_otp(order_id):
 def print_file(file_id):
     try:
         # 1. Get file details
-        file_res = supabase.table('order_files').select('*').eq('id', file_id).execute()
+        file_res = supabase.table('printhub_files').select('*').eq('id', file_id).execute()
         if not file_res.data:
             return "File not found in DB", 404
         file_record = file_res.data[0]
@@ -180,7 +180,7 @@ def print_file(file_id):
             print(f"[Telemetry] Tracked new hardware job: {job_id}")
             active_print_jobs[job_id] = {'order_id': order_id, 'file_path': local_filename}
             # Set status to Printing in Supabase so frontend knows it started
-            supabase.table('orders').update({'status': 'Printing...'}).eq('id', order_id).execute()
+            supabase.table('printhub_orders').update({'status': 'Printing...'}).eq('id', order_id).execute()
             
     except Exception as e:
         return f"Exception occurred: {str(e)}", 500

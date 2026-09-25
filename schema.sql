@@ -1,7 +1,7 @@
 -- Run this in your Supabase SQL Editor
 
 -- 1. Create the orders table
-CREATE TABLE IF NOT EXISTS public.orders (
+CREATE TABLE IF NOT EXISTS public.printhub_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_name TEXT NOT NULL,
     customer_email TEXT NOT NULL,
@@ -9,13 +9,15 @@ CREATE TABLE IF NOT EXISTS public.orders (
     notes TEXT,
     total_amount NUMERIC NOT NULL,
     status TEXT DEFAULT 'Pending', -- Pending, Paid, Printed
+    otp TEXT,
+    otp_verified BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Create the order_files table (to track config per file)
-CREATE TABLE IF NOT EXISTS public.order_files (
+-- 2. Create the files table (to track config per file)
+CREATE TABLE IF NOT EXISTS public.printhub_files (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
+    order_id UUID REFERENCES public.printhub_orders(id) ON DELETE CASCADE,
     file_name TEXT NOT NULL,
     storage_path TEXT NOT NULL,
     pages INTEGER NOT NULL,
@@ -33,24 +35,23 @@ VALUES ('print-files', 'print-files', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- 4. Set up permissive Row Level Security (RLS) for hacking speed
--- WARNING: In a production app, lock this down so users can only read their own files.
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_files ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.printhub_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.printhub_files ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow public inserts on orders" 
-ON public.orders FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Allow public inserts on printhub_orders" 
+ON public.printhub_orders FOR INSERT TO public WITH CHECK (true);
 
-CREATE POLICY "Allow public read on orders" 
-ON public.orders FOR SELECT TO public USING (true);
+CREATE POLICY "Allow public read on printhub_orders" 
+ON public.printhub_orders FOR SELECT TO public USING (true);
 
-CREATE POLICY "Allow public update on orders" 
-ON public.orders FOR UPDATE TO public USING (true);
+CREATE POLICY "Allow public update on printhub_orders" 
+ON public.printhub_orders FOR UPDATE TO public USING (true);
 
-CREATE POLICY "Allow public inserts on order_files" 
-ON public.order_files FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Allow public inserts on printhub_files" 
+ON public.printhub_files FOR INSERT TO public WITH CHECK (true);
 
-CREATE POLICY "Allow public read on order_files" 
-ON public.order_files FOR SELECT TO public USING (true);
+CREATE POLICY "Allow public read on printhub_files" 
+ON public.printhub_files FOR SELECT TO public USING (true);
 
 -- Storage Policies
 CREATE POLICY "Allow public uploads to print-files"

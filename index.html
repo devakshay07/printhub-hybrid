@@ -249,7 +249,7 @@ async function submitOrder() {
         
         // 1. Create Order in Supabase
         const { data: orderData, error: orderErr } = await supabase
-            .from('orders')
+            .from('printhub_orders')
             .insert([{ customer_name: name, customer_email: email, customer_phone: phone, notes: document.getElementById('c_notes').value, total_amount: totalAmount, otp: otpCode }])
             .select();
             
@@ -279,7 +279,7 @@ async function submitOrder() {
             if (uploadErr) throw uploadErr;
             
             // Log file config in DB
-            const { error: fileDbErr } = await supabase.from('order_files').insert([{
+            const { error: fileDbErr } = await supabase.from('printhub_files').insert([{
                 order_id: orderId,
                 file_name: f.name,
                 storage_path: storagePath,
