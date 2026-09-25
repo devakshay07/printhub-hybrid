@@ -8,72 +8,126 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
 <style>
-:root{--bg:#EAEFEF;--surface:#BFC9D1;--surface2:#1e1e1e;--border:#282828;--accent:#FF9B51;--text:#25343F;--muted:#555;--danger:#ff4d4d;}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:14px;}
-.container { max-width: 900px; margin: 0 auto; padding: 2rem; }
-h1 { font-family:'Bebas Neue',sans-serif; font-size:3rem; letter-spacing:0.05em; color:var(--text); margin-bottom: 0.5rem;}
+:root { 
+    --bg: #050505; 
+    --surface: #111111; 
+    --surface-hover: #1a1a1a; 
+    --border: #333333; 
+    --border-focus: #555555; 
+    --accent: #FF9B51; 
+    --text: #f0f0f0; 
+    --muted: #888888; 
+    --danger: #ff453a; 
+    --glow: rgba(255, 155, 81, 0.1); 
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; font-size: 14px; -webkit-font-smoothing: antialiased; }
+.container { max-width: 900px; margin: 0 auto; padding: 3rem 1.5rem; }
+h1 { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing: 0.05em; color: var(--text); margin-bottom: 0.5rem; line-height: 1; text-transform: uppercase;}
 h1 span { color: var(--accent); }
-.upload-zone { border: 2px dashed var(--border); padding: 3rem; text-align: center; cursor: pointer; background: var(--surface); border-radius: 12px; margin-bottom: 2rem; transition: 0.2s; }
-.upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: #b4bfc7; }
-.file-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; display: grid; gap: 1rem; grid-template-columns: 1fr auto; }
-.file-details h4 { margin-bottom: 0.5rem; word-break: break-all; }
-.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; }
-.config-item { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; }
-.config-item label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; }
-input, select { padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; }
-.btn { padding: 0.6rem 1.2rem; background: var(--accent); color: #000; border: none; border-radius: 6px; cursor: pointer; font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 0.1em; transition: 0.2s; }
-.btn:hover { opacity: 0.9; }
-.btn-remove { background: none; color: var(--danger); font-family: inherit; font-size: 0.8rem; letter-spacing: normal; }
-.customer-form { background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 2rem; display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
-.customer-form input { width: 100%; }
+.header-desc { margin-bottom: 3rem; color: var(--muted); font-size: 1.1rem; max-width: 600px; line-height: 1.5; }
+
+/* Modern Dropzone */
+.upload-zone { border: 1px dashed var(--border); padding: 4rem 2rem; text-align: center; cursor: pointer; background: var(--surface); border-radius: 16px; margin-bottom: 3rem; transition: all 0.3s ease; position: relative; overflow: hidden; }
+.upload-zone::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at center, var(--glow) 0%, transparent 70%); opacity: 0; transition: opacity 0.3s ease; }
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: var(--surface-hover); }
+.upload-zone:hover::before { opacity: 1; }
+.upload-zone h2 { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 0.05em; font-weight: normal; margin-bottom: 0.5rem; color: var(--accent); }
+
+/* Sleek File Cards */
+.file-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; transition: border-color 0.2s; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+.file-card:hover { border-color: var(--border-focus); }
+.file-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+.file-header h4 { font-size: 1.1rem; font-weight: 500; word-break: break-all; margin-right: 1rem; line-height: 1.4;}
+.file-header .badge { font-size: 0.75rem; color: var(--bg); font-weight: bold; margin-left: 0.75rem; background: var(--accent); padding: 0.2rem 0.6rem; border-radius: 4px; vertical-align: middle;}
+
+/* Form Controls */
+.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem; }
+.config-item { display: flex; flex-direction: column; gap: 0.5rem; }
+.config-item label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: bold;}
+input, select, textarea { width: 100%; padding: 0.75rem 1rem; background: #000; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.95rem; transition: border-color 0.2s; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+select { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em; padding-right: 2.5rem; cursor: pointer; }
+
+/* Buttons */
+.btn { padding: 0.8rem 1.5rem; background: var(--accent); color: #000; border: none; border-radius: 8px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 1rem; font-weight: bold; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;}
+.btn:hover { background: #fff; transform: translateY(-2px); box-shadow: 0 4px 15px var(--glow); }
+.btn:active { transform: translateY(0); }
+.btn-remove { background: transparent; color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem; border: 1px solid transparent; text-transform: none; font-weight: normal; letter-spacing: normal;}
+.btn-remove:hover { background: rgba(255, 69, 58, 0.1); border-color: rgba(255, 69, 58, 0.3); box-shadow: none; color: var(--danger); transform: none;}
+
+/* Customer Form */
+.customer-section { margin-top: 4rem; padding-top: 3rem; border-top: 1px dashed var(--border); }
+.customer-form { display: grid; gap: 1.5rem; grid-template-columns: 1fr 1fr; margin-bottom: 2rem; background: var(--surface); padding: 2rem; border-radius: 12px; border: 1px solid var(--border);}
 .full-width { grid-column: 1 / -1; }
-#overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); color: white; align-items: center; justify-content: center; flex-direction: column; z-index: 100; }
-.loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 1rem; }
+textarea { resize: vertical; min-height: 100px; }
+
+/* Checkout Footer */
+.checkout-footer { display: flex; justify-content: space-between; align-items: center; background: #000; padding: 1.5rem 2rem; border-radius: 12px; border: 1px solid var(--border); position: sticky; bottom: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.8), 0 0 0 1px var(--border); z-index: 10; margin-top: 2rem; }
+.price-block { display: flex; flex-direction: column; }
+.price-label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.price-value { font-size: 2.5rem; font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.05em; color: var(--accent); line-height: 1;}
+
+/* Loader Overlay */
+#overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: white; align-items: center; justify-content: center; flex-direction: column; z-index: 100; text-align: center; }
+.loader { border: 3px solid var(--border); border-top: 3px solid var(--accent); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 2rem; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.overlay-msg { font-size: 1.5rem; font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.1em; color: var(--accent); }
+.overlay-sub { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; max-width: 400px; line-height: 1.5;}
 </style>
 </head>
 <body>
 <div class="container">
-    <h1>INSTAPRINT<span>X</span> - CLOUD</h1>
-    <p style="margin-bottom: 2rem; color: var(--muted);">Upload files, select specific pages, configure print settings, and send directly to the shop's printer.</p>
+    <h1>INSTAPRINT<span>X</span></h1>
+    <p class="header-desc">Upload files, slice specific pages, configure your print settings, and deploy directly to the shop's local hardware.</p>
     
     <div class="upload-zone" id="dropzone" onclick="document.getElementById('file-input').click()">
-        <h2>Drag & Drop PDFs or Images here</h2>
-        <p style="color: var(--muted); margin-top: 0.5rem;">Or click to browse</p>
+        <h2>Drop files to deploy</h2>
+        <p style="color: var(--muted); margin-top: 0.5rem;">Click to browse local files (.pdf, .png, .jpg)</p>
         <input type="file" id="file-input" multiple accept=".pdf,.png,.jpg,.jpeg" style="display:none">
     </div>
 
     <div id="file-list"></div>
 
-    <div class="customer-form">
-        <div class="config-item">
-            <label>Full Name</label>
-            <input type="text" id="c_name" placeholder="John Doe">
-        </div>
-        <div class="config-item">
-            <label>Phone Number</label>
-            <input type="tel" id="c_phone" placeholder="+1 234 567 8900">
-        </div>
-        <div class="config-item full-width">
-            <label>Email Address</label>
-            <input type="email" id="c_email" placeholder="john@example.com">
-        </div>
-        <div class="config-item full-width">
-            <label>Any special notes?</label>
-            <input type="text" id="c_notes" placeholder="Bind them together, etc...">
+    <div class="customer-section">
+        <h2 style="font-family: 'Bebas Neue'; font-size: 2rem; margin-bottom: 1.5rem; letter-spacing: 0.05em;">Client Authorization</h2>
+        <div class="customer-form">
+            <div class="config-item">
+                <label>Full Name</label>
+                <input type="text" id="c_name" placeholder="John Doe">
+            </div>
+            <div class="config-item">
+                <label>Phone Number (For OTP Verification)</label>
+                <input type="tel" id="c_phone" placeholder="+91 98765 43210">
+            </div>
+            <div class="config-item full-width">
+                <label>Email Address</label>
+                <input type="email" id="c_email" placeholder="john@example.com">
+            </div>
+            <div class="config-item full-width">
+                <label>Special Instructions</label>
+                <textarea id="c_notes" placeholder="Bind it, staple it, or leave it loose..."></textarea>
+            </div>
         </div>
     </div>
-
-    <div style="text-align: right;">
-        <h2 style="margin-bottom: 1rem;">Total: <span id="total-price" style="color: var(--accent);">₹0.00</span></h2>
-        <button class="btn" id="submit-btn" onclick="submitOrder()">Submit Order to Print Shop →</button>
+    
+    <div class="checkout-footer">
+        <div class="price-block">
+            <span class="price-label">Estimated Total</span>
+            <span class="price-value" id="total-price">₹0.00</span>
+        </div>
+        <button class="btn" onclick="submitOrder()">
+            Deploy Print Job 
+        </button>
     </div>
 </div>
 
 <div id="overlay">
     <div class="loader"></div>
-    <h2 id="overlay-text">Processing...</h2>
+    <div class="overlay-msg" id="overlay-text">Deploying...</div>
+    <div class="overlay-sub" id="overlay-sub-text">Please do not close this window.</div>
+    <div class="overlay-sub" id="overlay-error" style="color: var(--danger); margin-top: 1rem; display: none;"></div>
+    <button class="btn" id="overlay-close" style="margin-top: 2rem; display: none;" onclick="closeOverlay()">Close & Try Again</button>
 </div>
 
 <!-- ========================================== -->
@@ -85,37 +139,43 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let filesData = [];
-
-// Base Rates
 const RATES = { bw: 1.0, color: 5.0, base_paper: 0 };
 
-document.getElementById('file-input').addEventListener('change', (e) => handleFiles(e.target.files));
 const dropzone = document.getElementById('dropzone');
 dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-dropzone.addEventListener('drop', (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+});
+document.getElementById('file-input').addEventListener('change', (e) => handleFiles(e.target.files));
 
 async function handleFiles(files) {
-    for (const file of files) {
-        let pageCount = 1;
-        if (file.type === 'application/pdf') {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-            pageCount = pdfDoc.getPageCount();
+    for (let f of files) {
+        let totalPages = 1;
+        if (f.type === 'application/pdf') {
+            try {
+                const arrayBuffer = await f.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                totalPages = pdfDoc.getPageCount();
+            } catch (err) {
+                console.error("PDF Parse error:", err);
+            }
         }
         
         filesData.push({
             id: Math.random().toString(36).substr(2, 9),
-            originalFile: file,
-            name: file.name,
-            type: file.type,
-            totalPages: pageCount,
+            originalFile: f,
+            name: f.name,
+            type: f.type,
+            totalPages: totalPages,
             config: {
                 copies: 1,
                 colorMode: 'bw',
                 sides: 'single',
                 paper: 'Plain 75gsm',
-                pageRange: '' // Empty means all pages
+                pageRange: ''
             }
         });
     }
@@ -126,41 +186,39 @@ function renderFiles() {
     const container = document.getElementById('file-list');
     container.innerHTML = '';
     
-    filesData.forEach((f, index) => {
+    filesData.forEach((f) => {
         const div = document.createElement('div');
         div.className = 'file-card';
         div.innerHTML = `
-            <div class="file-details">
-                <h4>${f.name} <span style="color:var(--muted); font-size:0.8em; font-weight:normal">(${f.totalPages} pages detected)</span></h4>
-                <div class="config-grid">
-                    <div class="config-item">
-                        <label>Copies</label>
-                        <input type="number" min="1" value="${f.config.copies}" onchange="updateConfig('${f.id}', 'copies', this.value)">
-                    </div>
-                    <div class="config-item">
-                        <label>Color</label>
-                        <select onchange="updateConfig('${f.id}', 'colorMode', this.value)">
-                            <option value="bw" ${f.config.colorMode === 'bw' ? 'selected' : ''}>Black & White</option>
-                            <option value="color" ${f.config.colorMode === 'color' ? 'selected' : ''}>Color</option>
-                        </select>
-                    </div>
-                    <div class="config-item">
-                        <label>Sides</label>
-                        <select onchange="updateConfig('${f.id}', 'sides', this.value)">
-                            <option value="single" ${f.config.sides === 'single' ? 'selected' : ''}>Single Sided</option>
-                            <option value="double" ${f.config.sides === 'double' ? 'selected' : ''}>Double Sided</option>
-                        </select>
-                    </div>
-                    ${f.type === 'application/pdf' ? `
-                    <div class="config-item">
-                        <label>Pages (e.g. 1-3,5)</label>
-                        <input type="text" placeholder="All" value="${f.config.pageRange}" onchange="updateConfig('${f.id}', 'pageRange', this.value)">
-                    </div>
-                    ` : ''}
-                </div>
+            <div class="file-header">
+                <h4>${f.name} <span class="badge">${f.totalPages} Pages</span></h4>
+                <button class="btn-remove" onclick="removeFile('${f.id}')">✕ Remove</button>
             </div>
-            <div>
-                <button class="btn btn-remove" onclick="removeFile('${f.id}')">Remove ✕</button>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label>Copies</label>
+                    <input type="number" min="1" value="${f.config.copies}" onchange="updateConfig('${f.id}', 'copies', this.value)">
+                </div>
+                <div class="config-item">
+                    <label>Color Mode</label>
+                    <select onchange="updateConfig('${f.id}', 'colorMode', this.value)">
+                        <option value="bw" ${f.config.colorMode === 'bw' ? 'selected' : ''}>Monochrome (B&W)</option>
+                        <option value="color" ${f.config.colorMode === 'color' ? 'selected' : ''}>Full Color</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>Duplexing</label>
+                    <select onchange="updateConfig('${f.id}', 'sides', this.value)">
+                        <option value="single" ${f.config.sides === 'single' ? 'selected' : ''}>Single Sided</option>
+                        <option value="double" ${f.config.sides === 'double' ? 'selected' : ''}>Double Sided</option>
+                    </select>
+                </div>
+                ${f.type === 'application/pdf' ? `
+                <div class="config-item">
+                    <label>Page Range</label>
+                    <input type="text" placeholder="e.g. 1-3, 5" value="${f.config.pageRange}" onchange="updateConfig('${f.id}', 'pageRange', this.value)">
+                </div>
+                ` : ''}
             </div>
         `;
         container.appendChild(div);
@@ -222,17 +280,34 @@ async function processPdf(fileObj, pageIndices) {
     return new Blob([pdfBytes], { type: 'application/pdf' });
 }
 
+function showError(msg) {
+    document.querySelector('.loader').style.display = 'none';
+    document.getElementById('overlay-text').textContent = 'Deployment Failed';
+    const errEl = document.getElementById('overlay-error');
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+    document.getElementById('overlay-close').style.display = 'inline-flex';
+}
+
+function closeOverlay() {
+    document.getElementById('overlay').style.display = 'none';
+    document.querySelector('.loader').style.display = 'block';
+    document.getElementById('overlay-error').style.display = 'none';
+    document.getElementById('overlay-close').style.display = 'none';
+}
+
 async function submitOrder() {
     if (filesData.length === 0) return alert('Add some files first.');
-    const name = document.getElementById('c_name').value;
-    const phone = document.getElementById('c_phone').value;
-    const email = document.getElementById('c_email').value;
+    const name = document.getElementById('c_name').value.trim();
+    const phone = document.getElementById('c_phone').value.trim();
+    const email = document.getElementById('c_email').value.trim();
     
-    if (!name || !phone) return alert('Name and phone are required.');
+    if (!name || !phone) return alert('Name and phone are required for authorization.');
     
     const overlay = document.getElementById('overlay');
     const overlayText = document.getElementById('overlay-text');
     overlay.style.display = 'flex';
+    document.querySelector('.loader').style.display = 'block';
     
     try {
         // Calculate Total
@@ -242,67 +317,65 @@ async function submitOrder() {
             totalAmount += pCount * f.config.copies * (f.config.colorMode === 'color' ? RATES.color : RATES.bw);
         });
 
-        overlayText.textContent = 'Creating Order...';
-        
-        // Generate Anti-Ghosting OTP
+        overlayText.textContent = 'Initializing Database...';
         const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
         
-        // 1. Create Order in Supabase
+        // 1. Create Order
         const { data: orderData, error: orderErr } = await supabase
             .from('printhub_orders')
             .insert([{ customer_name: name, customer_email: email, customer_phone: phone, notes: document.getElementById('c_notes').value, total_amount: totalAmount, otp: otpCode }])
             .select();
             
-        if (orderErr) throw orderErr;
+        if (orderErr) throw new Error("Order Creation Failed: " + (orderErr.message || JSON.stringify(orderErr)));
         const orderId = orderData[0].id;
 
-        // 2. Process and Upload Files
+        // 2. Process Files
         for (let i = 0; i < filesData.length; i++) {
             const f = filesData[i];
-            overlayText.textContent = `Processing & Uploading File ${i+1}/${filesData.length}...`;
+            overlayText.textContent = `Processing File ${i+1} of ${filesData.length}...`;
             
             let finalBlob = f.originalFile;
             let finalPages = f.totalPages;
             
-            // PDF Page extraction locally to save bandwidth
             if (f.type === 'application/pdf' && f.config.pageRange) {
                 const pageIndices = parsePageRange(f.config.pageRange, f.totalPages);
-                if (pageIndices.length === 0) continue; // Skip if no pages valid
-                finalBlob = await processPdf(f.originalFile, pageIndices);
-                finalPages = pageIndices.length;
+                if (pageIndices.length > 0) {
+                    finalBlob = await processPdf(f.originalFile, pageIndices);
+                    finalPages = pageIndices.length;
+                }
             }
             
             const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
             
-            // Upload to storage
+            overlayText.textContent = `Uploading File ${i+1}...`;
             const { error: uploadErr } = await supabase.storage.from('print-files').upload(storagePath, finalBlob);
-            if (uploadErr) throw uploadErr;
+            if (uploadErr) throw new Error("File Upload Failed: " + (uploadErr.message || JSON.stringify(uploadErr)));
             
-            // Log file config in DB
             const { error: fileDbErr } = await supabase.from('printhub_files').insert([{
                 order_id: orderId,
                 file_name: f.name,
                 storage_path: storagePath,
                 pages: finalPages,
                 copies: parseInt(f.config.copies),
-                paper_type: f.config.paper,
+                paper_type: f.config.paper || 'Plain 75gsm',
                 color_mode: f.config.colorMode,
                 sides: f.config.sides,
                 page_range: f.config.pageRange || 'All'
             }]);
-            if (fileDbErr) throw fileDbErr;
+            if (fileDbErr) throw new Error("File Config Save Failed: " + (fileDbErr.message || JSON.stringify(fileDbErr)));
         }
 
-        overlayText.textContent = 'Order Complete!';
+        document.querySelector('.loader').style.display = 'none';
+        overlayText.textContent = 'DEPLOYMENT SUCCESSFUL';
+        document.getElementById('overlay-sub-text').innerHTML = `<br>Your order is locked.<br><br><span style="font-size:2rem; color:var(--accent);">OTP PIN: ${otpCode}</span><br><br>Do not lose this PIN. Give it to the shopkeeper to unlock your prints.`;
+        
         setTimeout(() => {
-            alert(`Your order is placed! Your Pickup PIN is: ${otpCode}\n\nDo not lose this PIN, you need it to print at the shop.`);
             window.location.reload();
-        }, 1000);
+        }, 8000);
 
     } catch (e) {
-        console.error(e);
-        alert('An error occurred: ' + e.message);
-        overlay.style.display = 'none';
+        console.error("Submission Error:", e);
+        showError(e.message || "Unknown error occurred during upload.");
     }
 }
 </script>
