@@ -136,7 +136,7 @@ textarea { resize: vertical; min-height: 100px; }
 <script>
 const SUPABASE_URL = 'https://yfnjzhftofbihvwtcsyq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmbmp6aGZ0b2ZiaWh2d3Rjc3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNzI4NzksImV4cCI6MjEwNTg0ODg3OX0.hw5XMsjmgHkUvHYs03vdRSZdhHqznjdkQHp_vwKO-Lg';
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let filesData = [];
 const RATES = { bw: 1.0, color: 5.0, base_paper: 0 };
@@ -321,7 +321,7 @@ async function submitOrder() {
         const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
         
         // 1. Create Order
-        const { data: orderData, error: orderErr } = await supabase
+        const { data: orderData, error: orderErr } = await supabaseClient
             .from('printhub_orders')
             .insert([{ customer_name: name, customer_email: email, customer_phone: phone, notes: document.getElementById('c_notes').value, total_amount: totalAmount, otp: otpCode }])
             .select();
@@ -348,10 +348,10 @@ async function submitOrder() {
             const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
             
             overlayText.textContent = `Uploading File ${i+1}...`;
-            const { error: uploadErr } = await supabase.storage.from('print-files').upload(storagePath, finalBlob);
+            const { error: uploadErr } = await supabaseClientClient.storage.from('print-files').upload(storagePath, finalBlob);
             if (uploadErr) throw new Error("File Upload Failed: " + (uploadErr.message || JSON.stringify(uploadErr)));
             
-            const { error: fileDbErr } = await supabase.from('printhub_files').insert([{
+            const { error: fileDbErr } = await supabaseClientClient.from('printhub_files').insert([{
                 order_id: orderId,
                 file_name: f.name,
                 storage_path: storagePath,
