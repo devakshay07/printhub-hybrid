@@ -348,10 +348,10 @@ async function submitOrder() {
             const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
             
             overlayText.textContent = `Uploading File ${i+1}...`;
-            const { error: uploadErr } = await supabaseClientClient.storage.from('print-files').upload(storagePath, finalBlob);
+            const { error: uploadErr } = await supabaseClient.storage.from('print-files').upload(storagePath, finalBlob);
             if (uploadErr) throw new Error("File Upload Failed: " + (uploadErr.message || JSON.stringify(uploadErr)));
             
-            const { error: fileDbErr } = await supabaseClientClient.from('printhub_files').insert([{
+            const { error: fileDbErr } = await supabaseClient.from('printhub_files').insert([{
                 order_id: orderId,
                 file_name: f.name,
                 storage_path: storagePath,
