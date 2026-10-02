@@ -4,6 +4,8 @@ import threading
 import subprocess
 import re
 import json
+from dotenv import load_dotenv
+load_dotenv()
 from flask import Flask, render_template, request, redirect, url_for
 from supabase import create_client, Client
 import requests
