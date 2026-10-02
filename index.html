@@ -2,151 +2,207 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>INSTAPRINTX — Cloud Print Service</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PrintHub - Cloud Print Service</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <style>
-:root { 
-    --bg: #050505; 
-    --surface: #111111; 
-    --surface-hover: #1a1a1a; 
-    --border: #333333; 
-    --border-focus: #555555; 
-    --accent: #FF9B51; 
-    --text: #f0f0f0; 
-    --muted: #888888; 
-    --danger: #ff453a; 
-    --glow: rgba(255, 155, 81, 0.1); 
+:root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --border-hover: #cbd5e1;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --radius: 16px;
 }
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; font-size: 14px; -webkit-font-smoothing: antialiased; }
-.container { max-width: 900px; margin: 0 auto; padding: 3rem 1.5rem; }
-h1 { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing: 0.05em; color: var(--text); margin-bottom: 0.5rem; line-height: 1; text-transform: uppercase;}
-h1 span { color: var(--accent); }
-.header-desc { margin-bottom: 3rem; color: var(--muted); font-size: 1.1rem; max-width: 600px; line-height: 1.5; }
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+body { background: var(--bg); color: var(--text-main); line-height: 1.5; -webkit-font-smoothing: antialiased; padding-bottom: 100px; }
+.container { max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
 
-/* Modern Dropzone */
-.upload-zone { border: 1px dashed var(--border); padding: 4rem 2rem; text-align: center; cursor: pointer; background: var(--surface); border-radius: 16px; margin-bottom: 3rem; transition: all 0.3s ease; position: relative; overflow: hidden; }
-.upload-zone::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at center, var(--glow) 0%, transparent 70%); opacity: 0; transition: opacity 0.3s ease; }
-.upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: var(--surface-hover); }
-.upload-zone:hover::before { opacity: 1; }
-.upload-zone h2 { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 0.05em; font-weight: normal; margin-bottom: 0.5rem; color: var(--accent); }
+/* Header */
+header { text-align: center; margin-bottom: 2.5rem; }
+h1 { font-size: 2.5rem; font-weight: 700; color: var(--primary); letter-spacing: -0.5px; margin-bottom: 0.5rem; }
+.subtitle { color: var(--text-muted); font-size: 1.1rem; }
 
-/* Sleek File Cards */
-.file-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; transition: border-color 0.2s; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-.file-card:hover { border-color: var(--border-focus); }
-.file-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
-.file-header h4 { font-size: 1.1rem; font-weight: 500; word-break: break-all; margin-right: 1rem; line-height: 1.4;}
-.file-header .badge { font-size: 0.75rem; color: var(--bg); font-weight: bold; margin-left: 0.75rem; background: var(--accent); padding: 0.2rem 0.6rem; border-radius: 4px; vertical-align: middle;}
+/* Upload Zone */
+.upload-zone { background: var(--surface); border: 2px dashed var(--primary); border-radius: var(--radius); padding: 3rem 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s ease; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+.upload-zone:hover { background: #eff6ff; }
+.upload-icon { font-size: 3rem; margin-bottom: 1rem; }
+.upload-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+.upload-sub { color: var(--text-muted); font-size: 0.95rem; }
 
-/* Form Controls */
-.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem; }
-.config-item { display: flex; flex-direction: column; gap: 0.5rem; }
-.config-item label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: bold;}
-input, select, textarea { width: 100%; padding: 0.75rem 1rem; background: #000; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.95rem; transition: border-color 0.2s; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
-input:focus, select:focus, textarea:focus { border-color: var(--accent); }
-select { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em; padding-right: 2.5rem; cursor: pointer; }
+/* File Cards */
+.file-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.file-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.file-name { font-weight: 600; font-size: 1.1rem; word-break: break-all; padding-right: 1rem; }
+.file-badge { font-size: 0.8rem; background: #e2e8f0; color: var(--text-main); padding: 0.25rem 0.75rem; border-radius: 99px; font-weight: 500; white-space: nowrap; }
+.btn-remove { background: none; border: none; color: var(--danger); font-size: 0.9rem; font-weight: 500; cursor: pointer; padding: 0.5rem; border-radius: 8px; }
+.btn-remove:hover { background: #fef2f2; }
 
-/* Buttons */
-.btn { padding: 0.8rem 1.5rem; background: var(--accent); color: #000; border: none; border-radius: 8px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 1rem; font-weight: bold; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;}
-.btn:hover { background: #fff; transform: translateY(-2px); box-shadow: 0 4px 15px var(--glow); }
-.btn:active { transform: translateY(0); }
-.btn-remove { background: transparent; color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem; border: 1px solid transparent; text-transform: none; font-weight: normal; letter-spacing: normal;}
-.btn-remove:hover { background: rgba(255, 69, 58, 0.1); border-color: rgba(255, 69, 58, 0.3); box-shadow: none; color: var(--danger); transform: none;}
+/* Controls */
+.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+.input-group { display: flex; flex-direction: column; gap: 0.4rem; }
+.input-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+input[type="text"], input[type="number"], input[type="tel"], input[type="email"], select, textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; outline: none; transition: border-color 0.2s; background: var(--surface); }
+input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+textarea { resize: vertical; min-height: 80px; }
 
 /* Customer Form */
-.customer-section { margin-top: 4rem; padding-top: 3rem; border-top: 1px dashed var(--border); }
-.customer-form { display: grid; gap: 1.5rem; grid-template-columns: 1fr 1fr; margin-bottom: 2rem; background: var(--surface); padding: 2rem; border-radius: 12px; border: 1px solid var(--border);}
-.full-width { grid-column: 1 / -1; }
-textarea { resize: vertical; min-height: 100px; }
+.section-title { font-size: 1.5rem; font-weight: 700; margin: 2.5rem 0 1.5rem 0; }
+.form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2rem; }
 
-/* Checkout Footer */
-.checkout-footer { display: flex; justify-content: space-between; align-items: center; background: #000; padding: 1.5rem 2rem; border-radius: 12px; border: 1px solid var(--border); position: sticky; bottom: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.8), 0 0 0 1px var(--border); z-index: 10; margin-top: 2rem; }
-.price-block { display: flex; flex-direction: column; }
-.price-label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
-.price-value { font-size: 2.5rem; font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.05em; color: var(--accent); line-height: 1;}
+/* Payment Options */
+.payment-options { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.pay-option { border: 2px solid var(--border); border-radius: 12px; padding: 1rem; cursor: pointer; text-align: center; font-weight: 600; transition: all 0.2s; background: var(--surface); }
+.pay-option:hover { border-color: var(--border-hover); }
+.pay-option.selected { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
+.pay-option input { display: none; }
 
-/* Loader Overlay */
-#overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: white; align-items: center; justify-content: center; flex-direction: column; z-index: 100; text-align: center; }
-.loader { border: 3px solid var(--border); border-top: 3px solid var(--accent); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 2rem; }
+/* Sticky Footer */
+.checkout-footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 50; }
+.checkout-footer .container { max-width: 800px; margin: 0 auto; width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0; }
+.total-price { display: flex; flex-direction: column; }
+.total-price span { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+.total-price strong { font-size: 1.75rem; font-weight: 700; color: var(--primary); line-height: 1; }
+.btn-primary { background: var(--primary); color: white; border: none; padding: 1rem 2rem; border-radius: 12px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2); }
+.btn-primary:hover { background: var(--primary-hover); }
+
+/* Modals & Overlays */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
+.modal { background: var(--surface); width: 100%; max-width: 450px; border-radius: 24px; padding: 2.5rem 2rem; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+.modal h2 { font-size: 1.75rem; margin-bottom: 0.5rem; color: var(--success); }
+.modal p { color: var(--text-muted); margin-bottom: 1.5rem; }
+.otp-display { font-size: 4rem; font-weight: 800; color: var(--text-main); letter-spacing: 4px; margin: 1rem 0; background: var(--bg); padding: 1rem; border-radius: 16px; border: 2px dashed var(--border); }
+.modal .warning { color: var(--danger); font-weight: 600; font-size: 0.95rem; background: #fef2f2; padding: 1rem; border-radius: 12px; margin-bottom: 2rem; }
+.loader { border: 4px solid #e2e8f0; border-top: 4px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 1.5rem auto; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.overlay-msg { font-size: 1.5rem; font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.1em; color: var(--accent); }
-.overlay-sub { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; max-width: 400px; line-height: 1.5;}
+
+/* Error state */
+.error-msg { color: var(--danger); font-size: 0.95rem; margin-top: 1rem; padding: 1rem; background: #fef2f2; border-radius: 8px; display: none; text-align: left;}
 </style>
 </head>
 <body>
+
 <div class="container">
-    <h1>INSTAPRINT<span>X</span></h1>
-    <p class="header-desc">Upload files, slice specific pages, configure your print settings, and deploy directly to the shop's local hardware.</p>
+    <header>
+        <h1>PrintHub</h1>
+        <p class="subtitle">Upload files, configure settings, and pickup at the shop.</p>
+    </header>
     
     <div class="upload-zone" id="dropzone" onclick="document.getElementById('file-input').click()">
-        <h2>Drop files to deploy</h2>
-        <p style="color: var(--muted); margin-top: 0.5rem;">Click to browse local files (.pdf, .png, .jpg)</p>
+        <div class="upload-icon">📄</div>
+        <div class="upload-title">Tap here to select files</div>
+        <div class="upload-sub">PDF, PNG, JPG supported</div>
         <input type="file" id="file-input" multiple accept=".pdf,.png,.jpg,.jpeg" style="display:none">
     </div>
 
     <div id="file-list"></div>
 
-    <div class="customer-section">
-        <h2 style="font-family: 'Bebas Neue'; font-size: 2rem; margin-bottom: 1.5rem; letter-spacing: 0.05em;">Client Authorization</h2>
-        <div class="customer-form">
-            <div class="config-item">
-                <label>Full Name</label>
-                <input type="text" id="c_name" placeholder="John Doe">
-            </div>
-            <div class="config-item">
-                <label>Phone Number (For OTP Verification)</label>
-                <input type="tel" id="c_phone" placeholder="+91 98765 43210">
-            </div>
-            <div class="config-item full-width">
-                <label>Email Address</label>
-                <input type="email" id="c_email" placeholder="john@example.com">
-            </div>
-            <div class="config-item full-width">
-                <label>Special Instructions</label>
-                <textarea id="c_notes" placeholder="Bind it, staple it, or leave it loose..."></textarea>
-            </div>
+    <h2 class="section-title">Your Details</h2>
+    <div class="form-card">
+        <div class="input-group">
+            <label>Full Name</label>
+            <input type="text" id="c_name" placeholder="John Doe">
+        </div>
+        <div class="input-group">
+            <label>Phone Number (Required for pickup)</label>
+            <input type="tel" id="c_phone" placeholder="9876543210">
+        </div>
+        <div class="input-group">
+            <label>Special Instructions (Optional)</label>
+            <textarea id="c_notes" placeholder="Staple the pages, spiral binding, etc..."></textarea>
         </div>
     </div>
-    
-    <div class="checkout-footer">
-        <div class="price-block">
-            <span class="price-label">Estimated Total</span>
-            <span class="price-value" id="total-price">₹0.00</span>
+
+    <h2 class="section-title">Payment Method</h2>
+    <div class="form-card" style="margin-bottom: 4rem;">
+        <div class="payment-options">
+            <label class="pay-option selected" id="opt_shop">
+                <input type="radio" name="payment_method" value="shop" checked onchange="updatePaymentUI()">
+                Pay at Shop
+            </label>
+            <label class="pay-option" id="opt_online">
+                <input type="radio" name="payment_method" value="online" onchange="updatePaymentUI()">
+                Pay Online (Razorpay)
+            </label>
         </div>
-        <button class="btn" onclick="submitOrder()">
-            Deploy Print Job 
-        </button>
     </div>
 </div>
 
-<div id="overlay">
-    <div class="loader"></div>
-    <div class="overlay-msg" id="overlay-text">Deploying...</div>
-    <div class="overlay-sub" id="overlay-sub-text">Please do not close this window.</div>
-    <div class="overlay-sub" id="overlay-error" style="color: var(--danger); margin-top: 1rem; display: none;"></div>
-    <button class="btn" id="overlay-close" style="margin-top: 2rem; display: none;" onclick="closeOverlay()">Close & Try Again</button>
+<div class="checkout-footer">
+    <div class="container">
+        <div class="total-price">
+            <span>Total Amount</span>
+            <strong id="total-price">₹0.00</strong>
+        </div>
+        <button class="btn-primary" onclick="handleCheckout()">Confirm Order</button>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="overlay" id="loading-overlay" style="display: flex;">
+    <div class="modal">
+        <div class="loader"></div>
+        <h2 id="overlay-title" style="color: var(--primary);">Connecting...</h2>
+        <p id="overlay-desc">Please wait while we initialize the service.</p>
+        <div class="error-msg" id="overlay-error"></div>
+        <button class="btn-primary" id="btn-close-error" style="display: none; width: 100%; margin-top: 1rem;" onclick="closeError()">Close</button>
+    </div>
+</div>
+
+<!-- OTP Success Modal -->
+<div class="overlay" id="otp-modal">
+    <div class="modal">
+        <h2>Order Successful!</h2>
+        <p>Your files have been securely sent to the shop printer.</p>
+        
+        <div class="otp-display" id="otp-display-value">1234</div>
+        
+        <div class="warning">
+            ⚠️ Take a screenshot now!<br>
+            This PIN will disappear forever when you close this window. You need it to unlock your prints.
+        </div>
+        
+        <button class="btn-primary" style="width: 100%;" onclick="finishOrder()">I have saved the PIN</button>
+    </div>
 </div>
 
 <!-- ========================================== -->
-<!-- UPDATE THESE WITH YOUR REAL SUPABASE KEYS  -->
+<!-- JS LOGIC -->
 <!-- ========================================== -->
 <script>
 const SUPABASE_URL = 'https://yfnjzhftofbihvwtcsyq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmbmp6aGZ0b2ZiaWh2d3Rjc3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNzI4NzksImV4cCI6MjEwNTg0ODg3OX0.hw5XMsjmgHkUvHYs03vdRSZdhHqznjdkQHp_vwKO-Lg';
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabaseClient;
+try {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    document.getElementById('loading-overlay').style.display = 'none';
+} catch (e) {
+    showError("Failed to initialize database connection.");
+}
 
 let filesData = [];
-const RATES = { bw: 1.0, color: 5.0, base_paper: 0 };
+const RATES = { bw: 2.0, color: 10.0 }; // Adjusted typical rates for realism
+
+function updatePaymentUI() {
+    const isOnline = document.querySelector('input[name="payment_method"]:checked').value === 'online';
+    document.getElementById('opt_shop').className = isOnline ? 'pay-option' : 'pay-option selected';
+    document.getElementById('opt_online').className = isOnline ? 'pay-option selected' : 'pay-option';
+}
 
 const dropzone = document.getElementById('dropzone');
-dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = 'var(--primary)'; dropzone.style.background = '#eff6ff'; });
+dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = 'var(--primary)'; dropzone.style.background = 'var(--surface)'; });
 dropzone.addEventListener('drop', (e) => {
     e.preventDefault();
-    dropzone.classList.remove('dragover');
+    dropzone.style.background = 'var(--surface)';
     handleFiles(e.dataTransfer.files);
 });
 document.getElementById('file-input').addEventListener('change', (e) => handleFiles(e.target.files));
@@ -174,7 +230,6 @@ async function handleFiles(files) {
                 copies: 1,
                 colorMode: 'bw',
                 sides: 'single',
-                paper: 'Plain 75gsm',
                 pageRange: ''
             }
         });
@@ -191,32 +246,32 @@ function renderFiles() {
         div.className = 'file-card';
         div.innerHTML = `
             <div class="file-header">
-                <h4>${f.name} <span class="badge">${f.totalPages} Pages</span></h4>
-                <button class="btn-remove" onclick="removeFile('${f.id}')">✕ Remove</button>
+                <div class="file-name">${f.name} <span class="file-badge">${f.totalPages} Pages</span></div>
+                <button class="btn-remove" onclick="removeFile('${f.id}')">Remove</button>
             </div>
             <div class="config-grid">
-                <div class="config-item">
+                <div class="input-group">
                     <label>Copies</label>
                     <input type="number" min="1" value="${f.config.copies}" onchange="updateConfig('${f.id}', 'copies', this.value)">
                 </div>
-                <div class="config-item">
-                    <label>Color Mode</label>
+                <div class="input-group">
+                    <label>Color</label>
                     <select onchange="updateConfig('${f.id}', 'colorMode', this.value)">
-                        <option value="bw" ${f.config.colorMode === 'bw' ? 'selected' : ''}>Monochrome (B&W)</option>
-                        <option value="color" ${f.config.colorMode === 'color' ? 'selected' : ''}>Full Color</option>
+                        <option value="bw" ${f.config.colorMode === 'bw' ? 'selected' : ''}>Black & White</option>
+                        <option value="color" ${f.config.colorMode === 'color' ? 'selected' : ''}>Color</option>
                     </select>
                 </div>
-                <div class="config-item">
-                    <label>Duplexing</label>
+                <div class="input-group">
+                    <label>Sides</label>
                     <select onchange="updateConfig('${f.id}', 'sides', this.value)">
                         <option value="single" ${f.config.sides === 'single' ? 'selected' : ''}>Single Sided</option>
                         <option value="double" ${f.config.sides === 'double' ? 'selected' : ''}>Double Sided</option>
                     </select>
                 </div>
                 ${f.type === 'application/pdf' ? `
-                <div class="config-item">
-                    <label>Page Range</label>
-                    <input type="text" placeholder="e.g. 1-3, 5" value="${f.config.pageRange}" onchange="updateConfig('${f.id}', 'pageRange', this.value)">
+                <div class="input-group">
+                    <label>Specific Pages</label>
+                    <input type="text" placeholder="e.g. 1-3, 5 (Leave blank for all)" value="${f.config.pageRange}" onchange="updateConfig('${f.id}', 'pageRange', this.value)">
                 </div>
                 ` : ''}
             </div>
@@ -266,64 +321,117 @@ function calculateTotal() {
         total += (pagesToPrint * f.config.copies * rate);
     });
     document.getElementById('total-price').textContent = '₹' + total.toFixed(2);
+    return total;
+}
+
+function showError(title, msg) {
+    const overlay = document.getElementById('loading-overlay');
+    document.querySelector('.loader').style.display = 'none';
+    document.getElementById('overlay-title').textContent = title || 'Error';
+    document.getElementById('overlay-title').style.color = 'var(--danger)';
+    document.getElementById('overlay-desc').textContent = '';
+    
+    if (msg) {
+        const errEl = document.getElementById('overlay-error');
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+    }
+    document.getElementById('btn-close-error').style.display = 'block';
+    overlay.style.display = 'flex';
+}
+
+function closeError() {
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.querySelector('.loader').style.display = 'block';
+    document.getElementById('overlay-error').style.display = 'none';
+    document.getElementById('btn-close-error').style.display = 'none';
+    document.getElementById('overlay-title').style.color = 'var(--primary)';
 }
 
 async function processPdf(fileObj, pageIndices) {
     const arrayBuffer = await fileObj.arrayBuffer();
     const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
     const newPdf = await PDFLib.PDFDocument.create();
-    
     const copiedPages = await newPdf.copyPages(pdfDoc, pageIndices);
     copiedPages.forEach((page) => newPdf.addPage(page));
-    
     const pdfBytes = await newPdf.save();
     return new Blob([pdfBytes], { type: 'application/pdf' });
 }
 
-function showError(msg) {
-    document.querySelector('.loader').style.display = 'none';
-    document.getElementById('overlay-text').textContent = 'Deployment Failed';
-    const errEl = document.getElementById('overlay-error');
-    errEl.textContent = msg;
-    errEl.style.display = 'block';
-    document.getElementById('overlay-close').style.display = 'inline-flex';
-}
-
-function closeOverlay() {
-    document.getElementById('overlay').style.display = 'none';
-    document.querySelector('.loader').style.display = 'block';
-    document.getElementById('overlay-error').style.display = 'none';
-    document.getElementById('overlay-close').style.display = 'none';
-}
-
-async function submitOrder() {
-    if (filesData.length === 0) return alert('Add some files first.');
+function handleCheckout() {
+    if (filesData.length === 0) return alert('Please upload at least one file first.');
     const name = document.getElementById('c_name').value.trim();
     const phone = document.getElementById('c_phone').value.trim();
-    const email = document.getElementById('c_email').value.trim();
     
-    if (!name || !phone) return alert('Name and phone are required for authorization.');
+    if (!name || !phone) return alert('Name and phone number are required.');
     
-    const overlay = document.getElementById('overlay');
-    const overlayText = document.getElementById('overlay-text');
+    const isOnline = document.querySelector('input[name="payment_method"]:checked').value === 'online';
+    const totalAmount = calculateTotal();
+    
+    if (isOnline) {
+        // Mock Razorpay Integration for Frontend
+        // Note: A real implementation requires a server to create an Order ID using Razorpay Secrets.
+        var options = {
+            "key": "rzp_test_YourTestKeyHere", // Replace with real test key or live key
+            "amount": totalAmount * 100, // Amount in paise
+            "currency": "INR",
+            "name": "PrintHub",
+            "description": "Document Printing Service",
+            "handler": function (response){
+                // On successful payment
+                submitOrder(response.razorpay_payment_id);
+            },
+            "prefill": {
+                "name": name,
+                "contact": phone
+            },
+            "theme": { "color": "#2563eb" }
+        };
+        var rzp1 = new Razorpay(options);
+        rzp1.on('payment.failed', function (response){
+            alert("Payment Failed. Please try again or choose 'Pay at Shop'.");
+        });
+        rzp1.open();
+    } else {
+        submitOrder(null);
+    }
+}
+
+async function submitOrder(paymentId) {
+    const name = document.getElementById('c_name').value.trim();
+    const phone = document.getElementById('c_phone').value.trim();
+    const email = document.getElementById('c_email') ? document.getElementById('c_email').value.trim() : '';
+    const notes = document.getElementById('c_notes').value.trim();
+    const totalAmount = calculateTotal();
+    
+    const overlay = document.getElementById('loading-overlay');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlayDesc = document.getElementById('overlay-desc');
+    
     overlay.style.display = 'flex';
     document.querySelector('.loader').style.display = 'block';
     
     try {
-        // Calculate Total
-        let totalAmount = 0;
-        filesData.forEach(f => {
-            let pCount = f.type === 'application/pdf' && f.config.pageRange ? parsePageRange(f.config.pageRange, f.totalPages).length : f.totalPages;
-            totalAmount += pCount * f.config.copies * (f.config.colorMode === 'color' ? RATES.color : RATES.bw);
-        });
-
-        overlayText.textContent = 'Initializing Database...';
+        overlayTitle.textContent = 'Preparing Files...';
+        overlayDesc.textContent = 'Generating secure PIN...';
         const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
         
+        // Determine status based on payment
+        const initialStatus = paymentId ? 'Paid' : 'Pending';
+        
         // 1. Create Order
+        overlayTitle.textContent = 'Uploading...';
         const { data: orderData, error: orderErr } = await supabaseClient
             .from('printhub_orders')
-            .insert([{ customer_name: name, customer_email: email, customer_phone: phone, notes: document.getElementById('c_notes').value, total_amount: totalAmount, otp: otpCode }])
+            .insert([{ 
+                customer_name: name, 
+                customer_email: email, 
+                customer_phone: phone, 
+                notes: paymentId ? `[PAID ONLINE: ${paymentId}] ${notes}` : notes, 
+                total_amount: totalAmount, 
+                otp: otpCode,
+                status: initialStatus
+            }])
             .select();
             
         if (orderErr) throw new Error("Order Creation Failed: " + (orderErr.message || JSON.stringify(orderErr)));
@@ -332,7 +440,7 @@ async function submitOrder() {
         // 2. Process Files
         for (let i = 0; i < filesData.length; i++) {
             const f = filesData[i];
-            overlayText.textContent = `Processing File ${i+1} of ${filesData.length}...`;
+            overlayDesc.textContent = `Processing file ${i+1} of ${filesData.length}`;
             
             let finalBlob = f.originalFile;
             let finalPages = f.totalPages;
@@ -347,7 +455,6 @@ async function submitOrder() {
             
             const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
             
-            overlayText.textContent = `Uploading File ${i+1}...`;
             const { error: uploadErr } = await supabaseClient.storage.from('print-files').upload(storagePath, finalBlob);
             if (uploadErr) throw new Error("File Upload Failed: " + (uploadErr.message || JSON.stringify(uploadErr)));
             
@@ -357,26 +464,27 @@ async function submitOrder() {
                 storage_path: storagePath,
                 pages: finalPages,
                 copies: parseInt(f.config.copies),
-                paper_type: f.config.paper || 'Plain 75gsm',
                 color_mode: f.config.colorMode,
                 sides: f.config.sides,
                 page_range: f.config.pageRange || 'All'
             }]);
-            if (fileDbErr) throw new Error("File Config Save Failed: " + (fileDbErr.message || JSON.stringify(fileDbErr)));
+            if (fileDbErr) throw new Error("Database Sync Failed: " + (fileDbErr.message || JSON.stringify(fileDbErr)));
         }
 
-        document.querySelector('.loader').style.display = 'none';
-        overlayText.textContent = 'DEPLOYMENT SUCCESSFUL';
-        document.getElementById('overlay-sub-text').innerHTML = `<br>Your order is locked.<br><br><span style="font-size:2rem; color:var(--accent);">OTP PIN: ${otpCode}</span><br><br>Do not lose this PIN. Give it to the shopkeeper to unlock your prints.`;
+        // Hide loader, show OTP modal
+        document.getElementById('loading-overlay').style.display = 'none';
         
-        setTimeout(() => {
-            window.location.reload();
-        }, 8000);
+        document.getElementById('otp-display-value').textContent = otpCode;
+        document.getElementById('otp-modal').style.display = 'flex';
 
     } catch (e) {
         console.error("Submission Error:", e);
-        showError(e.message || "Unknown error occurred during upload.");
+        showError("Upload Failed", e.message || "Unknown error occurred.");
     }
+}
+
+function finishOrder() {
+    window.location.reload();
 }
 </script>
 </body>
