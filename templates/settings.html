@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1 style="margin-top:0; margin-bottom: 1.5rem;">Control Panel</h1>
+
+    {% if success %}
+    <div style="background: #d4edda; color: #155724; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
+        Settings successfully updated.
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('settings') }}">
+        
+        <!-- Cloud Settings -->
+        <div class="card">
+            <h3 style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">Public Site Configuration (Cloud)</h3>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">These settings sync directly to your live Vercel website.</p>
+            
+            <div class="form-group">
+                <label>Site Status</label>
+                <select name="is_accepting_orders" class="form-control">
+                    <option value="true" {% if cloud_config.is_accepting_orders %}selected{% endif %}>🟢 Online (Accepting Orders)</option>
+                    <option value="false" {% if not cloud_config.is_accepting_orders %}selected{% endif %}>🔴 Offline (Closed)</option>
+                </select>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>B&W Print Charge (₹ per page)</label>
+                    <input type="number" step="0.5" name="price_bw" class="form-control" value="{{ cloud_config.price_bw }}" required>
+                </div>
+                <div class="form-group">
+                    <label>Color Print Charge (₹ per page)</label>
+                    <input type="number" step="0.5" name="price_color" class="form-control" value="{{ cloud_config.price_color }}" required>
+                </div>
+            </div>
+        </div>
+
+        <!-- Local Printer Routing -->
+        <div class="card">
+            <h3 style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">Local Hardware Routing</h3>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">Map which physical printer to use based on the customer's selection. If left as 'System Default', the OS default is used.</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>B&W Printer Destination</label>
+                    <select name="printer_bw" class="form-control">
+                        <option value="">-- System Default --</option>
+                        {% for p in system_printers %}
+                        <option value="{{ p }}" {% if local_config.printer_bw == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Color Printer Destination</label>
+                    <select name="printer_color" class="form-control">
+                        <option value="">-- System Default --</option>
+                        {% for p in system_printers %}
+                        <option value="{{ p }}" {% if local_config.printer_color == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="font-size: 1.1rem; padding: 0.75rem 2rem;">Save All Settings</button>
+    </form>
+{% endblock %}

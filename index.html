@@ -189,7 +189,27 @@ try {
 }
 
 let filesData = [];
-const RATES = { bw: 2.0, color: 10.0 }; // Adjusted typical rates for realism
+let RATES = { bw: 2.0, color: 10.0 }; 
+let SHOP_ONLINE = true;
+
+async function fetchShopSettings() {
+    try {
+        const { data, error } = await supabaseClient.from('printhub_settings').select('*').eq('id', 1).single();
+        if (data) {
+            RATES.bw = parseFloat(data.price_bw) || 2.0;
+            RATES.color = parseFloat(data.price_color) || 10.0;
+            SHOP_ONLINE = data.is_accepting_orders;
+            
+            if (!SHOP_ONLINE) {
+                document.getElementById('dropzone').style.display = 'none';
+                document.getElementById('dropzone').insertAdjacentHTML('afterend', '<div style="background:#fef2f2; color:#ef4444; padding:2rem; border-radius:16px; text-align:center; font-weight:bold; font-size:1.2rem; border:2px dashed #ef4444;">Shop is currently offline. We are not accepting orders right now.</div>');
+            }
+        }
+    } catch (e) {
+        console.error("Could not fetch shop settings", e);
+    }
+}
+fetchShopSettings();
 
 function updatePaymentUI() {
     const isOnline = document.querySelector('input[name="payment_method"]:checked').value === 'online';
