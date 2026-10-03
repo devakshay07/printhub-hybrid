@@ -61,7 +61,7 @@
 
     <script>
         const SUPABASE_URL = 'https://yfnjzhftofbihvwtcsyq.supabase.co';
-        let supabase = null;
+        let supabaseClient = null;
 
         async function login() {
             const key = document.getElementById('serviceKey').value.trim();
@@ -69,10 +69,10 @@
             
             try {
                 // Initialize with Service Role Key (Bypasses RLS)
-                supabase = window.supabase.createClient(SUPABASE_URL, key);
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, key);
                 
                 // Test connection
-                const { data, error } = await supabase.from('printhub_shops').select('*').limit(1);
+                const { data, error } = await supabaseClient.from('printhub_shops').select('*').limit(1);
                 if(error) throw error;
                 
                 document.getElementById('loginBox').style.display = 'none';
@@ -88,7 +88,7 @@
             const tbody = document.getElementById('shopsBody');
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#888;">Scanning database...</td></tr>';
             
-            const { data, error } = await supabase.from('printhub_shops').select('*').order('created_at', { ascending: false });
+            const { data, error } = await supabaseClient.from('printhub_shops').select('*').order('created_at', { ascending: false });
             
             if(error) {
                 tbody.innerHTML = `<tr><td colspan="5" style="color:red;">Error: ${error.message}</td></tr>`;
@@ -144,13 +144,13 @@
             if(!confirm(`Add ${days} days to this shop's subscription?`)) return;
             
             // Get current expiry or use now
-            const { data } = await supabase.from('printhub_shops').select('subscription_expiry').eq('id', id).single();
+            const { data } = await supabaseClient.from('printhub_shops').select('subscription_expiry').eq('id', id).single();
             let current = data.subscription_expiry ? new Date(data.subscription_expiry) : new Date();
             if(current < new Date()) current = new Date(); // If expired, start from today
             
             current.setDate(current.getDate() + days);
             
-            await supabase.from('printhub_shops').update({ 
+            await supabaseClient.from('printhub_shops').update({ 
                 subscription_expiry: current.toISOString(),
                 is_active: true // Auto restore if adding time
             }).eq('id', id);
@@ -162,7 +162,7 @@
             const action = activate ? "restore" : "permanently suspend";
             if(!confirm(`Are you sure you want to ${action} this shop?`)) return;
             
-            await supabase.from('printhub_shops').update({ is_active: activate }).eq('id', id);
+            await supabaseClient.from('printhub_shops').update({ is_active: activate }).eq('id', id);
             loadShops();
         }
     </script>
