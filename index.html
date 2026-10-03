@@ -216,6 +216,11 @@ async function initializeTenant() {
             return;
         }
         
+        if (shopData.is_active === false) {
+            document.body.innerHTML = `<div style="padding: 3rem; text-align: center; font-family: sans-serif;"><h1 style="color: #ef4444;">Shop Suspended</h1><p>This shop's subscription to PrintHub has expired. Please contact the shop owner.</p></div>`;
+            return;
+        }
+        
         currentShopId = shopData.id;
         currentShopName = shopData.shop_name;
         document.querySelector('header h1').textContent = currentShopName;
