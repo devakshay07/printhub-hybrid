@@ -4,44 +4,40 @@ import threading
 import subprocess
 import re
 import json
-from dotenv import load_dotenv
-load_dotenv()
-
-SHOP_SUBDOMAIN = os.environ.get("SHOP_SUBDOMAIN", "demo")
-
-from flask import Flask, render_template, request, redirect, url_for
+import uuid
+import datetime
+from flask import Flask, render_template, request, redirect, url_for, session
 from supabase import create_client, Client
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = "printhub_enterprise_hardware_secret_key_change_me"
 
-SUPABASE_URL = "https://yfnjzhftofbihvwtcsyq.supabase.co"
-# Security Upgrade: Use SERVICE_ROLE_KEY if available for backend ops
-SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmbmp6aGZ0b2ZiaWh2d3Rjc3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNzI4NzksImV4cCI6MjEwNTg0ODg3OX0.hw5XMsjmgHkUvHYs03vdRSZdhHqznjdkQHp_vwKO-Lg"
-SUPABASE_KEY = SERVICE_KEY if SERVICE_KEY else ANON_KEY
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://yfnjzhftofbihvwtcsyq.supabase.co")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmbmp6aGZ0b2ZiaWh2d3Rjc3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNzI4NzksImV4cCI6MjEwNTg0ODg3OX0.hw5XMsjmgHkUvHYs03vdRSZdhHqznjdkQHp_vwKO-Lg")
 
-if not SERVICE_KEY:
-    print("⚠️ WARNING: Running with public ANON_KEY. Database RLS might block operations. Set SUPABASE_SERVICE_ROLE_KEY environment variable!")
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-print(f"Fetching tenant ID for subdomain: {SHOP_SUBDOMAIN}...")
-try:
-    shop_res = supabase.table('printhub_shops').select('id').eq('subdomain', SHOP_SUBDOMAIN).execute()
-    if not shop_res.data:
-        print("CRITICAL ERROR: Shop subdomain not found in database! Halting.")
-        exit(1)
-    SHOP_ID = shop_res.data[0]['id']
-    print(f"Tenant Authenticated! Shop ID: {SHOP_ID}")
-except Exception as e:
-    print(f"Failed to connect to Supabase: {e}")
-    exit(1)
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 TEMP_DIR = "temp_print_spool"
 os.makedirs(TEMP_DIR, exist_ok=True)
-
 CONFIG_FILE = "shop_config.json"
+
+# Cryptographic Hardware ID (Motherboard/MAC hash)
+def get_hwid():
+    return str(uuid.getnode())
+
+HWID = get_hwid()
+
+AGENT_STATE = {
+    'shop_id': None,
+    'is_locked': True,
+    'lock_reason': 'Device not authenticated. Please log in.'
+}
+
+active_print_jobs = {}
 
 def get_local_config():
     if os.path.exists(CONFIG_FILE):
@@ -64,34 +60,36 @@ def get_system_printers():
     except:
         return []
 
-# In-memory tracker for active CUPS print jobs
-active_print_jobs = {}
+def hardware_heartbeat():
+    while True:
+        if AGENT_STATE['shop_id'] and not AGENT_STATE['is_locked']:
+            try:
+                res = supabase.table('printhub_shops').select('active_device_id, is_active').eq('id', AGENT_STATE['shop_id']).execute()
+                if res.data:
+                    shop = res.data[0]
+                    # 1. Check Killswitch
+                    if not shop.get('is_active'):
+                        AGENT_STATE['is_locked'] = True
+                        AGENT_STATE['lock_reason'] = "Shop suspended by Superadmin."
+                    
+                    # 2. Check Hardware Concurrency (Single Device Lock)
+                    elif str(shop.get('active_device_id')) != HWID:
+                        AGENT_STATE['is_locked'] = True
+                        AGENT_STATE['lock_reason'] = "Account logged in from another computer. Hardware lock engaged."
+                        try:
+                            supabase.auth.sign_out()
+                        except:
+                            pass
+            except Exception as e:
+                pass
+        time.sleep(5)
 
-def purge_cloud_storage():
-    try:
-        from datetime import datetime, timezone, timedelta
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        res = supabase.table('printhub_orders').select('id, created_at, status').eq('status', 'Printed').eq('shop_id', SHOP_ID).execute()
-        for order in res.data:
-            created = datetime.fromisoformat(order['created_at'].replace('Z', '+00:00'))
-            if created < cutoff:
-                f_res = supabase.table('printhub_files').select('storage_path').eq('order_id', order['id']).execute()
-                paths = [f['storage_path'] for f in f_res.data if f['storage_path'] != 'PURGED']
-                if paths:
-                    supabase.storage.from_('print-files').remove(paths)
-                    supabase.table('printhub_files').update({'storage_path': 'PURGED'}).eq('order_id', order['id']).execute()
-                supabase.table('printhub_orders').update({'status': 'Archived (Purged)'}).eq('id', order['id']).execute()
-    except Exception as e:
-        print(f"[Cost Control Error] {str(e)}")
+threading.Thread(target=hardware_heartbeat, daemon=True).start()
 
 def monitor_printer():
     last_sweep = 0
     while True:
-        if time.time() - last_sweep > 3600:
-            purge_cloud_storage()
-            last_sweep = time.time()
-
-        if active_print_jobs:
+        if active_print_jobs and not AGENT_STATE['is_locked']:
             try:
                 result = subprocess.run(['lpstat', '-o'], capture_output=True, text=True)
                 active_cups_jobs = result.stdout
@@ -107,18 +105,64 @@ def monitor_printer():
                 for j in jobs_to_remove:
                     del active_print_jobs[j]
             except Exception as e:
-                print(f"[Telemetry Error] {str(e)}")
+                pass
         time.sleep(3)
 
-telemetry_thread = threading.Thread(target=monitor_printer, daemon=True)
-telemetry_thread.start()
+threading.Thread(target=monitor_printer, daemon=True).start()
 
-from datetime import datetime, timezone
+@app.before_request
+def check_auth():
+    if request.endpoint in ['login', 'static']:
+        return
+        
+    if AGENT_STATE['is_locked']:
+        return render_template('locked.html', reason=AGENT_STATE['lock_reason'], hwid=HWID)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        try:
+            auth_res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+            user_id = auth_res.user.id
+            
+            shop_res = supabase.table('printhub_shops').select('id, is_active').eq('owner_uid', user_id).execute()
+            if not shop_res.data:
+                return render_template('login.html', error="No PrintHub shop linked to this account.", hwid=HWID)
+                
+            shop = shop_res.data[0]
+            if not shop.get('is_active'):
+                return render_template('login.html', error="Shop is suspended by Superadmin.", hwid=HWID)
+            
+            shop_id = shop['id']
+            # Authenticate HWID
+            supabase.table('printhub_shops').update({'active_device_id': HWID}).eq('id', shop_id).execute()
+            
+            AGENT_STATE['shop_id'] = shop_id
+            AGENT_STATE['is_locked'] = False
+            AGENT_STATE['lock_reason'] = ""
+            
+            return redirect(url_for('dashboard'))
+            
+        except Exception as e:
+            return render_template('login.html', error="Invalid credentials or network error.", hwid=HWID)
+            
+    return render_template('login.html', hwid=HWID)
+
+@app.route('/logout')
+def logout():
+    AGENT_STATE['is_locked'] = True
+    AGENT_STATE['lock_reason'] = "Device disconnected securely."
+    try:
+        supabase.auth.sign_out()
+    except:
+        pass
+    return redirect(url_for('login'))
 
 @app.route('/')
 def dashboard():
-    # Fetch shop data for expiry alerts
-    shop_res = supabase.table('printhub_shops').select('subscription_expiry, is_active').eq('id', SHOP_ID).execute()
+    shop_res = supabase.table('printhub_shops').select('subscription_expiry, is_active').eq('id', AGENT_STATE['shop_id']).execute()
     shop_data = shop_res.data[0] if shop_res.data else {}
     
     expiry_str = shop_data.get('subscription_expiry')
@@ -126,26 +170,25 @@ def dashboard():
     
     days_left = 999
     in_grace_period = False
-    is_locked = False
+    is_locked_ui = False
     
     if not is_active:
-        is_locked = True
+        is_locked_ui = True
     elif expiry_str:
         try:
-            # Parse ISO 8601 timestamp from Supabase
-            expiry_date = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
-            now = datetime.now(timezone.utc)
+            expiry_date = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
+            now = datetime.datetime.now(datetime.timezone.utc)
             delta = expiry_date - now
             days_left = delta.days
             
             if days_left < 0:
                 in_grace_period = True
                 if days_left < -3:
-                    is_locked = True
-        except Exception as e:
-            print("Date parse error:", e)
+                    is_locked_ui = True
+        except:
+            pass
 
-    response = supabase.table('printhub_orders').select('*').eq('shop_id', SHOP_ID).order('created_at', desc=True).execute()
+    response = supabase.table('printhub_orders').select('*').eq('shop_id', AGENT_STATE['shop_id']).order('created_at', desc=True).execute()
     orders = response.data
     files_res = supabase.table('printhub_files').select('*').execute()
     files_data = files_res.data
@@ -154,31 +197,27 @@ def dashboard():
         if any(order['id'] == v.get('order_id') for v in active_print_jobs.values()) and order['status'] != 'Printed':
             order['status'] = 'Printing (Hardware)'
             
-    return render_template('admin.html', orders=orders, days_left=days_left, in_grace_period=in_grace_period, is_locked=is_locked)
+    return render_template('admin.html', orders=orders, days_left=days_left, in_grace_period=in_grace_period, is_locked=is_locked_ui)
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
     success = False
-    
-    # Check if table exists by trying to select, if fails we assume we need to instruct user
     try:
-        res = supabase.table('printhub_settings').select('*').eq('shop_id', SHOP_ID).execute()
+        res = supabase.table('printhub_settings').select('*').eq('shop_id', AGENT_STATE['shop_id']).execute()
         if not res.data:
-            supabase.table('printhub_settings').insert([{'shop_id': SHOP_ID}]).execute()
-            res = supabase.table('printhub_settings').select('*').eq('shop_id', SHOP_ID).execute()
+            supabase.table('printhub_settings').insert([{'shop_id': AGENT_STATE['shop_id']}]).execute()
+            res = supabase.table('printhub_settings').select('*').eq('shop_id', AGENT_STATE['shop_id']).execute()
         cloud_config = res.data[0]
     except Exception as e:
-        return f"Error reaching Supabase settings table. Please run the setup SQL snippet in your Supabase SQL editor. Details: {e}", 500
+        return f"Error reaching Supabase settings table. {e}", 500
 
     if request.method == 'POST':
-        # Save local config
         local_cfg = {
             "printer_bw": request.form.get('printer_bw', ''),
             "printer_color": request.form.get('printer_color', '')
         }
         save_local_config(local_cfg)
         
-        # Save cloud config
         is_accepting = request.form.get('is_accepting_orders') == 'true'
         price_bw = float(request.form.get('price_bw', 2.0))
         price_color = float(request.form.get('price_color', 10.0))
@@ -187,7 +226,7 @@ def settings():
             'is_accepting_orders': is_accepting,
             'price_bw': price_bw,
             'price_color': price_color
-        }).eq('shop_id', SHOP_ID).execute()
+        }).eq('shop_id', AGENT_STATE['shop_id']).execute()
         
         cloud_config['is_accepting_orders'] = is_accepting
         cloud_config['price_bw'] = price_bw
@@ -223,7 +262,7 @@ def verify_otp(order_id):
         else:
             return "INCORRECT PIN - Nice try ghost.", 403
     except Exception as e:
-        return f"Network Error: Unable to reach Supabase. Check your internet connection. (Error: {str(e)})", 503
+        return f"Network Error. (Error: {str(e)})", 503
 
 @app.route('/print/<file_id>', methods=['POST'])
 def print_file(file_id):
@@ -248,7 +287,6 @@ def print_file(file_id):
             
         cmd = ["lp", "-n", str(file_record['copies'])]
         
-        # Apply Hardware Routing based on Local Settings
         local_cfg = get_local_config()
         if file_record['color_mode'] == 'bw':
             cmd.extend(["-o", "ColorModel=Gray"])
@@ -265,7 +303,6 @@ def print_file(file_id):
             
         cmd.append(local_filename)
         
-        print(f"Executing: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True)
         
         if result.returncode != 0:
@@ -283,6 +320,6 @@ def print_file(file_id):
     return redirect(url_for('dashboard'))
 
 if __name__ == '__main__':
-    print("Starting Local Shop Agent with Hardware Telemetry...")
+    print(f"Starting Local Shop Agent with HWID: {HWID}")
     from waitress import serve
     serve(app, host='127.0.0.1', port=5002)
