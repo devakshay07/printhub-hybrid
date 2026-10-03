@@ -129,7 +129,9 @@
                     <td>${statusBadge}</td>
                     <td>${daysLeft} days</td>
                     <td>
-                        <button class="action-btn green" onclick="addTime('${shop.id}', 30)">+30 Days</button>
+                        <button class="action-btn green" onclick="addTime('${shop.id}', 30)">+30D</button>
+                        <button class="action-btn red" style="background:#dc3545;" onclick="addTime('${shop.id}', -30)">-30D</button>
+                        <button class="action-btn" style="background:#007bff;" onclick="editShop('${shop.id}', '${shop.shop_name}')">EDIT</button>
                         ${shop.is_active 
                             ? `<button class="action-btn red" onclick="toggleKillswitch('${shop.id}', false)">PULL PLUG</button>` 
                             : `<button class="action-btn green" onclick="toggleKillswitch('${shop.id}', true)">RESTORE</button>`
@@ -138,6 +140,14 @@
                 `;
                 tbody.appendChild(tr);
             });
+        }
+
+        async function editShop(id, currentName) {
+            const newName = prompt("Enter new Shop Name:", currentName);
+            if(!newName || newName === currentName) return;
+            
+            await supabase.from('printhub_shops').update({ shop_name: newName }).eq('id', id);
+            loadShops();
         }
 
         async function addTime(id, days) {
