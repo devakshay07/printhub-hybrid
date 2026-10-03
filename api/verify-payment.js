@@ -4,14 +4,29 @@ const { createClient } = require('@supabase/supabase-js');
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, supabase_order_id } = req.body;
-    const secret = process.env.RAZORPAY_KEY_SECRET;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, supabase_order_id, shop_id } = req.body;
 
-    if (!secret || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        return res.status(500).json({ error: "Server missing environment variables" });
-    }
+    if (!shop_id || !supabase_order_id) return res.status(400).json({ error: "Missing required fields" });
 
     try {
+        const supabase = createClient(
+            process.env.SUPABASE_URL || 'https://yfnjzhftofbihvwtcsyq.supabase.co',
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+
+        // Fetch the specific shop's Razorpay secret
+        const { data: shopData, error: shopErr } = await supabase
+            .from('printhub_shops')
+            .select('rzp_key_secret')
+            .eq('id', shop_id)
+            .single();
+
+        if (shopErr || !shopData || !shopData.rzp_key_secret) {
+            return res.status(500).json({ success: false, error: "Shop payment configuration missing." });
+        }
+
+        const secret = shopData.rzp_key_secret;
+
         // 1. Verify Cryptographic Signature
         const shasum = crypto.createHmac('sha256', secret);
         shasum.update(razorpay_order_id + "|" + razorpay_payment_id);
@@ -22,11 +37,6 @@ export default async function handler(req, res) {
         }
 
         // 2. Signature is valid. Upgrade the order status in Supabase securely.
-        const supabase = createClient(
-            process.env.SUPABASE_URL || 'https://yfnjzhftofbihvwtcsyq.supabase.co',
-            process.env.SUPABASE_SERVICE_ROLE_KEY
-        );
-
         const { error } = await supabase
             .from('printhub_orders')
             .update({ status: 'Paid', notes: `[PAID ONLINE: ${razorpay_payment_id}]` })
