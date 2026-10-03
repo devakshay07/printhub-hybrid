@@ -6,6 +6,9 @@ import re
 import json
 from dotenv import load_dotenv
 load_dotenv()
+
+SHOP_SUBDOMAIN = os.environ.get("SHOP_SUBDOMAIN", "demo")
+
 from flask import Flask, render_template, request, redirect, url_for
 from supabase import create_client, Client
 import requests
@@ -22,6 +25,19 @@ if not SERVICE_KEY:
     print("⚠️ WARNING: Running with public ANON_KEY. Database RLS might block operations. Set SUPABASE_SERVICE_ROLE_KEY environment variable!")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+print(f"Fetching tenant ID for subdomain: {SHOP_SUBDOMAIN}...")
+try:
+    shop_res = supabase.table('printhub_shops').select('id').eq('subdomain', SHOP_SUBDOMAIN).execute()
+    if not shop_res.data:
+        print("CRITICAL ERROR: Shop subdomain not found in database! Halting.")
+        exit(1)
+    SHOP_ID = shop_res.data[0]['id']
+    print(f"Tenant Authenticated! Shop ID: {SHOP_ID}")
+except Exception as e:
+    print(f"Failed to connect to Supabase: {e}")
+    exit(1)
+
 TEMP_DIR = "temp_print_spool"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
@@ -55,7 +71,7 @@ def purge_cloud_storage():
     try:
         from datetime import datetime, timezone, timedelta
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        res = supabase.table('printhub_orders').select('id, created_at, status').eq('status', 'Printed').execute()
+        res = supabase.table('printhub_orders').select('id, created_at, status').eq('status', 'Printed').eq('shop_id', SHOP_ID).execute()
         for order in res.data:
             created = datetime.fromisoformat(order['created_at'].replace('Z', '+00:00'))
             if created < cutoff:
@@ -99,7 +115,7 @@ telemetry_thread.start()
 
 @app.route('/')
 def dashboard():
-    response = supabase.table('printhub_orders').select('*').order('created_at', desc=True).execute()
+    response = supabase.table('printhub_orders').select('*').eq('shop_id', SHOP_ID).order('created_at', desc=True).execute()
     orders = response.data
     files_res = supabase.table('printhub_files').select('*').execute()
     files_data = files_res.data
@@ -115,10 +131,10 @@ def settings():
     
     # Check if table exists by trying to select, if fails we assume we need to instruct user
     try:
-        res = supabase.table('printhub_settings').select('*').eq('id', 1).execute()
+        res = supabase.table('printhub_settings').select('*').eq('shop_id', SHOP_ID).execute()
         if not res.data:
-            supabase.table('printhub_settings').insert([{'id': 1}]).execute()
-            res = supabase.table('printhub_settings').select('*').eq('id', 1).execute()
+            supabase.table('printhub_settings').insert([{'shop_id': SHOP_ID}]).execute()
+            res = supabase.table('printhub_settings').select('*').eq('shop_id', SHOP_ID).execute()
         cloud_config = res.data[0]
     except Exception as e:
         return f"Error reaching Supabase settings table. Please run the setup SQL snippet in your Supabase SQL editor. Details: {e}", 500
@@ -140,7 +156,7 @@ def settings():
             'is_accepting_orders': is_accepting,
             'price_bw': price_bw,
             'price_color': price_color
-        }).eq('id', 1).execute()
+        }).eq('shop_id', SHOP_ID).execute()
         
         cloud_config['is_accepting_orders'] = is_accepting
         cloud_config['price_bw'] = price_bw
