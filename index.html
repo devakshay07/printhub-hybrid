@@ -209,7 +209,7 @@ async function initializeTenant() {
         }
 
         // 1. Fetch Shop Details
-        const { data: shopData, error: shopErr } = await supabaseClient.from('printhub_shops').select('*').eq('subdomain', subdomain).single();
+        const { data: shopData, error: shopErr } = await supabaseClient.from('printhub_shops').select('id, shop_name, is_active').eq('subdomain', subdomain).single();
         
         if (!shopData) {
             document.body.innerHTML = `<div style="padding: 3rem; text-align: center; font-family: sans-serif;"><h1>404 - Shop Not Found</h1><p>The print shop at subdomain '${subdomain}' does not exist on our platform.</p></div>`;
@@ -227,7 +227,7 @@ async function initializeTenant() {
         document.title = currentShopName + " - PrintHub SaaS";
 
         // 2. Fetch Shop Settings
-        const { data: settingsData } = await supabaseClient.from('printhub_settings').select('*').eq('shop_id', currentShopId).single();
+        const { data: settingsData } = await supabaseClient.from('printhub_settings').select('price_bw, price_color, is_accepting_orders').eq('shop_id', currentShopId).single();
         
         if (settingsData) {
             RATES.bw = parseFloat(settingsData.price_bw) || 2.0;
