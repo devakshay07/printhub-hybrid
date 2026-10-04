@@ -236,10 +236,36 @@ def dashboard():
 
     response = supabase.table('printhub_orders').select('*').eq('shop_id', AGENT_STATE['shop_id']).order('created_at', desc=True).execute()
     orders = response.data
+    
+    # Secure server-side pricing validation
+    try:
+        settings_res = supabase.table('printhub_settings').select('price_bw, price_color').eq('shop_id', AGENT_STATE['shop_id']).execute()
+        price_bw = 2.0
+        price_color = 10.0
+        if settings_res.data:
+            price_bw = float(settings_res.data[0].get('price_bw', 2.0))
+            price_color = float(settings_res.data[0].get('price_color', 10.0))
+    except:
+        price_bw = 2.0
+        price_color = 10.0
+
     files_res = supabase.table('printhub_files').select('*').execute()
     files_data = files_res.data
     for order in orders:
-        order['files'] = [f for f in files_data if f['order_id'] == order['id']]
+        order_files = [f for f in files_data if f['order_id'] == order['id']]
+        order['files'] = order_files
+        
+        # Verify if the total_amount passed by the client is mathematically accurate
+        expected_total = 0.0
+        for f in order_files:
+            pages = f.get('pages', 1)
+            copies = f.get('copies', 1)
+            rate = price_color if f.get('color_mode') == 'color' else price_bw
+            expected_total += (pages * copies * rate)
+            
+        order['expected_amount'] = expected_total
+        order['is_tampered'] = abs(float(order['total_amount']) - expected_total) > 0.1
+        
         if any(order['id'] == v.get('order_id') for v in active_print_jobs.values()) and order['status'] != 'Printed':
             order['status'] = 'Printing (Hardware)'
             
@@ -343,6 +369,12 @@ def print_file(file_id):
         download_url = supabase.storage.from_('print-files').get_public_url(storage_path)
         
         local_filename = os.path.join(TEMP_DIR, os.path.basename(storage_path))
+        
+        # Security: Prevent printing malware or unsupported types
+        ext = os.path.splitext(local_filename)[1].lower()
+        if ext not in ['.pdf', '.png', '.jpg', '.jpeg']:
+            return "Security Error: Unsupported file format.", 415
+            
         r = requests.get(download_url, stream=True)
         if r.status_code == 200:
             bytes_downloaded = 0

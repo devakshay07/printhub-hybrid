@@ -95,6 +95,16 @@
                 </div>
             </div>
             
+            {% if order.is_tampered %}
+            <div class="bg-red-50 border-2 border-red-500 rounded-2xl p-4 mb-6 text-red-700 flex items-start gap-3 shadow-sm">
+                <i data-lucide="shield-alert" class="w-6 h-6 text-red-600 shrink-0"></i>
+                <div>
+                    <strong class="block text-red-800 uppercase tracking-tight font-bold mb-1">Fraud Alert: Price Forged</strong>
+                    <span class="text-sm font-medium">The customer maliciously manipulated the browser to pay ₹{{ "%.2f"|format(order.total_amount) }}. The actual cost for these files is ₹{{ "%.2f"|format(order.expected_amount) }}. Do not print this unless they pay the difference!</span>
+                </div>
+            </div>
+            {% endif %}
+            
             {% if order.notes %}
             <div class="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 mb-6 text-sm text-blue-900 flex items-start gap-3">
                 <i data-lucide="message-square" class="w-5 h-5 text-blue-500 shrink-0 mt-0.5"></i>
