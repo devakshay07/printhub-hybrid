@@ -116,12 +116,12 @@ def hardware_heartbeat():
                     # 1. Check Killswitch
                     if not shop.get('is_active'):
                         AGENT_STATE['is_locked'] = True
-                        AGENT_STATE['lock_reason'] = "Shop suspended by Superadmin."
+                        AGENT_STATE['lock_reason'] = "Account suspended by platform administrator."
                     
                     # 2. Check Hardware Concurrency (Single Device Lock)
                     elif str(shop.get('active_device_id')) != HWID:
                         AGENT_STATE['is_locked'] = True
-                        AGENT_STATE['lock_reason'] = "Account logged in from another computer. Hardware lock engaged."
+                        AGENT_STATE['lock_reason'] = "Account logged in from another computer. Device access revoked."
                         try:
                             supabase.auth.sign_out()
                         except:
@@ -199,7 +199,7 @@ def login():
 @app.route('/logout')
 def logout():
     AGENT_STATE['is_locked'] = True
-    AGENT_STATE['lock_reason'] = "Device disconnected securely."
+    AGENT_STATE['lock_reason'] = "You have been securely logged out."
     try:
         supabase.auth.sign_out()
     except:
