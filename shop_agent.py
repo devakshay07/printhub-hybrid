@@ -158,7 +158,7 @@ threading.Thread(target=monitor_printer, daemon=True).start()
 
 @app.before_request
 def check_auth():
-    if request.endpoint in ['login', 'static']:
+    if request.endpoint in ['login', 'logout', 'static']:
         return
         
     if AGENT_STATE['is_locked']:
