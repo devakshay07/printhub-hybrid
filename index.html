@@ -794,9 +794,11 @@ async function submitOrder(paymentId) {
         const initialStatus = paymentId ? 'Paid' : 'Pending';
         
         overlayTitle.textContent = 'Processing request...';
-        const { data: orderData, error: orderErr } = await supabaseClient
+        const orderId = crypto.randomUUID();
+        const { error: orderErr } = await supabaseClient
             .from('printhub_orders')
             .insert([{ 
+                id: orderId,
                 shop_id: currentShopId,
                 customer_name: name, 
                 customer_phone: phone, 
@@ -804,11 +806,9 @@ async function submitOrder(paymentId) {
                 total_amount: totalAmount, 
                 otp: otpCode,
                 status: initialStatus
-            }])
-            .select();
+            }]);
             
         if (orderErr) throw new Error("Connection failed: " + (orderErr.message || JSON.stringify(orderErr)));
-        const orderId = orderData[0].id;
 
         for (let i = 0; i < filesData.length; i++) {
             const f = filesData[i];
