@@ -1,94 +1,97 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1 style="margin-top:0; margin-bottom: 1.5rem;">Control Panel</h1>
+<div class="max-w-4xl mx-auto">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2"><i data-lucide="sliders" class="w-6 h-6 text-blue-600"></i> Hardware & Cloud Config</h1>
+            <p class="text-sm text-slate-500 font-medium mt-1">Manage physical relays and Vercel synchronizations.</p>
+        </div>
+    </div>
 
     {% if success %}
-    <div style="background: #d4edda; color: #155724; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
-        Settings successfully updated.
+    <div class="bg-emerald-50 border-2 border-emerald-500 text-emerald-700 px-4 py-3 rounded-xl mb-8 flex items-center gap-3 fade-in shadow-sm font-medium">
+        <i data-lucide="check-circle-2" class="w-5 h-5"></i> Configuration synced successfully across all edge nodes.
     </div>
     {% endif %}
 
-    <form method="POST" action="{{ url_for('settings') }}">
+    <form method="POST" action="{{ url_for('settings') }}" class="space-y-8">
         
-        <!-- Cloud Settings -->
-        
-        <div class="card">
-            <h3>Shop Profile (Cloud)</h3>
-            <p style="color: #64748b; font-size: 0.9rem; margin-top: -10px; margin-bottom: 20px;">This updates your public branding on your unique Vercel link.</p>
+        <!-- CLOUD CONFIG -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
+            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-2"><i data-lucide="cloud" class="w-5 h-5 text-blue-600"></i> SaaS Profile (Vercel Edge)</h2>
+            <p class="text-sm text-slate-500 font-medium mb-6">These settings sync directly to your live Vercel storefront in real-time.</p>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                <div class="form-group">
-                    <label>Shop Name</label>
-                    <input type="text" name="shop_name" value="{{ shop_data.get('shop_name', '') }}" required>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Shop Name</label>
+                    <input type="text" name="shop_name" value="{{ shop_data.get('shop_name', '') }}" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all">
                 </div>
-                <div class="form-group">
-                    <label>Logo URL (Optional)</label>
-                    <input type="text" name="logo_url" value="{{ shop_data.get('logo_url', '') }}" placeholder="https://example.com/logo.png">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Logo URL <span class="text-slate-400 font-normal">(Optional)</span></label>
+                    <input type="text" name="logo_url" value="{{ shop_data.get('logo_url', '') }}" placeholder="https://example.com/logo.png" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Physical Location</label>
+                    <input type="text" name="location" value="{{ shop_data.get('location', '') }}" placeholder="e.g., Near Main Gate, MIT Campus" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Live Offer Banner <span class="text-slate-400 font-normal">(Optional)</span></label>
+                    <input type="text" name="offer_banner" value="{{ cloud_config.get('offer_banner', '') }}" placeholder="e.g., 50% Off Color Prints Today!" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all">
                 </div>
             </div>
-            <div class="form-group">
-                <label>Physical Location / Address</label>
-                <input type="text" name="location" value="{{ shop_data.get('location', '') }}" placeholder="e.g., Near Main Gate, MIT Campus">
-            </div>
-            <div class="form-group">
-                <label>Offer Banner / Announcement (Optional)</label>
-                <input type="text" name="offer_banner" value="{{ cloud_config.get('offer_banner', '') }}" placeholder="e.g., 50% Off Color Prints Today!">
-            </div>
-        </div>
 
-        <div class="card">
-
-            <h3 style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">Public Site Configuration (Cloud)</h3>
-            <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">These settings sync directly to your live Vercel website.</p>
-            
-            <div class="form-group">
-                <label>Site Status</label>
-                <select name="is_accepting_orders" class="form-control">
-                    <option value="true" {% if cloud_config.is_accepting_orders %}selected{% endif %}>🟢 Online (Accepting Orders)</option>
-                    <option value="false" {% if not cloud_config.is_accepting_orders %}selected{% endif %}>🔴 Offline (Closed)</option>
-                </select>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label>B&W Print Charge (₹ per page)</label>
-                    <input type="number" step="0.5" name="price_bw" class="form-control" value="{{ cloud_config.price_bw }}" required>
+            <div class="border-t border-slate-100 pt-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Terminal Status</label>
+                    <select name="is_accepting_orders" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none cursor-pointer">
+                        <option value="true" {% if cloud_config.get('is_accepting_orders') %}selected{% endif %}>🟢 Online (Accepting Orders)</option>
+                        <option value="false" {% if not cloud_config.get('is_accepting_orders') %}selected{% endif %}>🔴 Offline (Maintenance)</option>
+                    </select>
                 </div>
-                <div class="form-group">
-                    <label>Color Print Charge (₹ per page)</label>
-                    <input type="number" step="0.5" name="price_color" class="form-control" value="{{ cloud_config.price_color }}" required>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">B&W Print Charge (₹/page)</label>
+                    <input type="number" step="0.1" name="price_bw" value="{{ cloud_config.get('price_bw', '2.0') }}" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Color Print Charge (₹/page)</label>
+                    <input type="number" step="0.1" name="price_color" value="{{ cloud_config.get('price_color', '10.0') }}" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono">
                 </div>
             </div>
         </div>
 
-        <!-- Local Printer Routing -->
-        <div class="card">
-            <h3 style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">Local Hardware Routing</h3>
-            <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">Map which physical printer to use based on the customer's selection. If left as 'System Default', the OS default is used.</p>
+        <!-- HARDWARE ROUTING -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
+            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-2"><i data-lucide="cpu" class="w-5 h-5 text-slate-600"></i> Local Hardware Relays</h2>
+            <p class="text-sm text-slate-500 font-medium mb-6">Map incoming payload color modes to specific physical hardware printers on this machine.</p>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label>B&W Printer Destination</label>
-                    <select name="printer_bw" class="form-control">
-                        <option value="">-- System Default --</option>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-slate-800"></div> B&W Relay Destination</label>
+                    <select name="printer_bw" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none cursor-pointer">
+                        <option value="">System Default</option>
                         {% for p in system_printers %}
-                        <option value="{{ p }}" {% if local_config.printer_bw == p %}selected{% endif %}>{{ p }}</option>
+                        <option value="{{ p }}" {% if local_config.get('printer_bw') == p %}selected{% endif %}>{{ p }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Color Printer Destination</label>
-                    <select name="printer_color" class="form-control">
-                        <option value="">-- System Default --</option>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400"></div> Color Relay Destination</label>
+                    <select name="printer_color" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none cursor-pointer">
+                        <option value="">System Default</option>
                         {% for p in system_printers %}
-                        <option value="{{ p }}" {% if local_config.printer_color == p %}selected{% endif %}>{{ p }}</option>
+                        <option value="{{ p }}" {% if local_config.get('printer_color') == p %}selected{% endif %}>{{ p }}</option>
                         {% endfor %}
                     </select>
                 </div>
             </div>
         </div>
 
-        <button type="submit" class="btn btn-primary" style="font-size: 1.1rem; padding: 0.75rem 2rem;">Save All Settings</button>
+        <div class="flex justify-end sticky bottom-6">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-10 rounded-2xl shadow-xl shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 w-full sm:w-auto">
+                <i data-lucide="save" class="w-5 h-5"></i> Compile & Sync Settings
+            </button>
+        </div>
     </form>
+</div>
 {% endblock %}

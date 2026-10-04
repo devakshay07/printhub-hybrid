@@ -1,14 +1,29 @@
 {% extends "base.html" %}
+{% set hide_navbar = True %}
+
 {% block content %}
-<div style="max-width: 500px; margin: 4rem auto; background: #dc3545; color: white; padding: 2rem; border-radius: 8px; text-align: center; border: 4px solid #721c24;">
-    <h1 style="margin: 0 0 1rem 0; font-size: 2rem; text-transform: uppercase;">Hardware Lock Engaged</h1>
-    <p style="font-size: 1.1rem; font-weight: bold;">{{ reason }}</p>
-    <p style="margin-bottom: 2rem;">This computer has been disconnected from the PrintHub network. All pending print jobs have been frozen to protect customer data.</p>
+<div class="min-h-[80vh] flex flex-col items-center justify-center p-4">
+    <div class="bg-red-50 p-8 sm:p-10 rounded-3xl shadow-2xl max-w-lg w-full border border-red-200 fade-in text-center shadow-red-500/10">
+        <div class="w-24 h-24 bg-red-100 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner animate-pulse"><i data-lucide="lock" class="w-12 h-12"></i></div>
+        
+        <h2 class="text-3xl font-black text-red-700 mb-2 tracking-tight uppercase">Hardware Lock Engaged</h2>
+        
+        <div class="bg-white rounded-2xl p-6 border border-red-100 mt-6 mb-8 text-left relative overflow-hidden shadow-sm">
+            <div class="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+            <p class="text-slate-800 font-bold mb-1 text-lg">{{ reason }}</p>
+            <p class="text-sm text-slate-500 font-medium">This computer has been disconnected from the PrintHub network. All pending print jobs have been frozen to protect customer data.</p>
+        </div>
+        
+        <form action="{{ url_for('logout') }}" method="GET">
+            <button type="submit" class="w-full bg-red-600 text-white font-bold py-4 rounded-xl hover:bg-red-700 shadow-lg shadow-red-500/30 transition-all active:scale-95 flex items-center justify-center gap-2">
+                <i data-lucide="refresh-cw" class="w-5 h-5"></i> Re-Authenticate Device
+            </button>
+        </form>
+    </div>
     
-    <a href="{{ url_for('login') }}" class="btn" style="background: white; color: #dc3545; font-weight: bold; text-decoration: none; padding: 0.75rem 2rem;">Re-Authenticate Device</a>
-    
-    <div style="margin-top: 2rem; font-family: monospace; color: #ffb3b3; font-size: 0.8rem;">
-        HWID: {{ hwid }}
+    <div class="mt-8 text-center text-xs text-slate-400 font-mono tracking-widest fade-in flex flex-col items-center gap-2">
+        <i data-lucide="cpu" class="w-4 h-4 text-red-300"></i>
+        <span class="text-red-400">HWID: {{ hwid }}</span>
     </div>
 </div>
 {% endblock %}

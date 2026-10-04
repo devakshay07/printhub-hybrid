@@ -1,139 +1,155 @@
 {% extends "base.html" %}
 
-{% block head %}
-<style>
-    .order-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; border-bottom: 1px solid #eee; padding-bottom: 1rem; }
-    .order-id { font-size: 1.2rem; font-weight: bold; color: #FF9B51; }
-    .status-badge { padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.85rem; font-weight: 500; }
-    .status-Pending { background: #fff3cd; color: #856404; }
-    .status-Paid { background: #d4edda; color: #155724; }
-    .status-Printing..., .status-Printing\ \(Hardware\) { background: #cce5ff; color: #004085; animation: pulse 1.5s infinite; }
-    .status-Printed { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-    .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem; font-size: 0.9rem; }
-    .label { color: #666; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .value { font-weight: 500; }
-    .file-list { margin-top: 1rem; border: 1px solid #eee; border-radius: 4px; border-collapse: collapse; width: 100%; }
-    .file-list th, .file-list td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
-    .file-list th { background: #fafafa; font-weight: 600; color: #555; }
-    .actions-form { display: inline; }
-    .empty-state { text-align: center; padding: 3rem; color: #777; }
-    .unlock-form { display: flex; gap: 0.5rem; margin-top: 1rem; background: #fff3cd; padding: 1rem; border-radius: 4px; border: 1px solid #ffeeba; }
-    .unlock-form input { padding: 0.4rem; border: 1px solid #ccc; border-radius: 4px; width: 120px; font-family: monospace; letter-spacing: 2px; }
-</style>
-{% endblock %}
-
 {% block content %}
     {% if is_locked %}
-    <div style="background: #dc3545; color: white; padding: 2rem; border-radius: 8px; margin-bottom: 2rem; text-align: center; border: 4px solid #721c24; animation: pulse 2s infinite;">
-        <h1 style="margin: 0 0 1rem 0; font-size: 2.5rem; text-transform: uppercase;">⚠️ FATAL SYSTEM LOCK ⚠️</h1>
-        <p style="font-size: 1.2rem; font-weight: bold;">Your PrintHub SaaS Subscription has completely expired. The 3-day grace period is over.</p>
-        <p>Please contact Akshay to renew your subscription and unlock the hardware agent. All print jobs are frozen.</p>
+    <div class="bg-red-50 border-2 border-red-500 rounded-3xl p-6 sm:p-8 mb-8 shadow-lg shadow-red-500/10 text-center animate-pulse">
+        <i data-lucide="shield-alert" class="w-16 h-16 text-red-500 mx-auto mb-4"></i>
+        <h1 class="text-3xl font-extrabold text-red-700 mb-2 tracking-tight uppercase">Fatal System Lock</h1>
+        <p class="text-lg font-bold text-red-800 mb-1">Your PrintHub SaaS Subscription has expired.</p>
+        <p class="text-sm text-red-600 font-medium">All hardware relays and print jobs are frozen. Contact Akshay to renew.</p>
     </div>
     {% elif in_grace_period %}
-    <div style="background: #ffc107; color: #856404; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; border: 3px solid #ffeeba; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4);">
-        <h2 style="margin: 0 0 0.5rem 0; font-size: 1.8rem; text-transform: uppercase;">🚨 HIGH ALERT: SUBSCRIPTION EXPIRED 🚨</h2>
-        <p style="font-size: 1.1rem; font-weight: bold; margin: 0;">You are currently operating in the 3-day emergency grace period.</p>
-        <p style="margin: 0.5rem 0 0 0;">Pay your platform rent immediately. If payment is not received, this software will lock automatically, and you will lose access to all pending orders.</p>
+    <div class="bg-amber-50 border-2 border-amber-400 rounded-3xl p-6 mb-8 shadow-lg shadow-amber-500/10">
+        <div class="flex items-center gap-4 mb-3">
+            <div class="bg-amber-100 p-3 rounded-2xl"><i data-lucide="alert-triangle" class="w-8 h-8 text-amber-600"></i></div>
+            <div>
+                <h2 class="text-xl font-bold text-amber-800 uppercase tracking-tight">Grace Period Active</h2>
+                <p class="text-amber-700 font-medium text-sm">Pay your platform rent immediately. Automatic killswitch engages in {{ days_left + 3 }} days.</p>
+            </div>
+        </div>
     </div>
     {% else %}
-    <div style="background: #d4edda; color: #155724; padding: 0.75rem; border-radius: 4px; margin-bottom: 1.5rem; font-size: 0.9rem; border: 1px solid #c3e6cb; display: flex; justify-content: space-between; align-items: center;">
-        <strong>Subscription Active</strong>
-        <span>Expires in: {{ days_left }} days</span>
+    <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-8 flex justify-between items-center shadow-sm">
+        <div class="flex items-center gap-2 text-emerald-700 font-semibold text-sm">
+            <i data-lucide="check-circle-2" class="w-5 h-5"></i> Hardware Uplink Secure
+        </div>
+        <span class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-lg text-xs font-bold">{{ days_left }} Days Remaining</span>
     </div>
     {% endif %}
 
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <h1 style="margin:0;">Active Orders</h1>
-        <button class="btn btn-dark" onclick="window.location.reload()">Refresh Feed</button>
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2"><i data-lucide="activity" class="w-6 h-6 text-blue-600"></i> Live Terminal Feed</h1>
+        <button onclick="window.location.reload()" class="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-blue-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-all active:scale-95"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Sync</button>
     </div>
     
     {% if not orders %}
-    <div class="card empty-state">
-        <p>No active orders right now. Listening to the cloud...</p>
+    <div class="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm">
+        <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100"><i data-lucide="radio" class="w-8 h-8 text-slate-300"></i></div>
+        <h3 class="text-lg font-bold text-slate-700 mb-1">Awaiting Transmissions</h3>
+        <p class="text-slate-500 text-sm">No active orders right now. Listening to the cloud...</p>
     </div>
     {% endif %}
 
+    <div class="space-y-6">
     {% for order in orders %}
-    <div class="card">
-        <div class="order-header">
-            <div>
-                <div class="order-id">#{{ order.id[:8] | upper }}</div>
-                <div style="font-size: 0.85rem; color: #777; margin-top: 0.25rem;">{{ order.created_at[:10] }}</div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <span class="status-badge status-{{ order.status }}">{{ order.status }}</span>
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            {% if order.status == 'Pending' %}<div class="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>{% endif %}
+            {% if order.status == 'Paid' %}<div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>{% endif %}
+            {% if order.status == 'Printed' %}<div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>{% endif %}
+            
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6 border-b border-slate-100 pb-6">
+                <div>
+                    <div class="flex items-center gap-3 mb-1">
+                        <span class="text-lg font-black text-slate-900 tracking-tight uppercase">#{{ order.id[:8] }}</span>
+                        
+                        {% if order.status == 'Pending' %}
+                            <span class="bg-amber-50 text-amber-600 px-3 py-1 rounded-lg text-xs font-bold border border-amber-200">AWAITING PAYMENT</span>
+                        {% elif order.status == 'Paid' %}
+                            <span class="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-xs font-bold border border-blue-200">PAID & READY</span>
+                        {% elif order.status == 'Printed' %}
+                            <span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold border border-slate-200">COMPLETED</span>
+                        {% else %}
+                            <span class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-xs font-bold border border-indigo-200 animate-pulse">{{ order.status|upper }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> {{ order.created_at[:16].replace('T', ' ') }}</div>
+                </div>
                 
-                {% if order.status == 'Pending' %}
-                <form class="actions-form" action="{{ url_for('update_status', order_id=order.id) }}" method="POST">
-                    <input type="hidden" name="status" value="Paid">
-                    <button class="btn" style="background:#28a745; color:white;" type="submit">Accept Money</button>
-                </form>
-                {% elif order.status == 'Paid' %}
-                <form class="actions-form" action="{{ url_for('update_status', order_id=order.id) }}" method="POST">
-                    <input type="hidden" name="status" value="Printed">
-                    <button class="btn btn-dark" style="background:#0056b3;" type="submit">Mark Printed</button>
-                </form>
-                {% endif %}
+                <div class="flex items-center gap-2">
+                    {% if order.status == 'Pending' %}
+                    <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST">
+                        <input type="hidden" name="status" value="Paid">
+                        <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"><i data-lucide="coins" class="w-4 h-4"></i> Cash Received</button>
+                    </form>
+                    {% elif order.status == 'Paid' %}
+                    <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST">
+                        <input type="hidden" name="status" value="Printed">
+                        <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"><i data-lucide="check-check" class="w-4 h-4"></i> Archive Job</button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
-        </div>
-        
-        <div class="details-grid">
-            <div>
-                <div class="label">Customer</div>
-                <div class="value">{{ order.customer_name }}<br>{{ order.customer_phone }}</div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer</div>
+                    <div class="font-bold text-slate-800 text-sm truncate">{{ order.customer_name }}</div>
+                </div>
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Phone</div>
+                    <div class="font-bold text-slate-800 text-sm">{{ order.customer_phone }}</div>
+                </div>
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 md:col-span-2">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Order Value</div>
+                    <div class="font-black text-emerald-600 text-xl">₹{{ "%.2f"|format(order.total_amount) }}</div>
+                </div>
             </div>
-            <div>
-                <div class="label">Amount</div>
-                <div class="value" style="font-size: 1.2rem; color: #28a745;">₹{{ "%.2f"|format(order.total_amount) }}</div>
+            
+            {% if order.notes %}
+            <div class="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 mb-6 text-sm text-blue-900 flex items-start gap-3">
+                <i data-lucide="message-square" class="w-5 h-5 text-blue-500 shrink-0 mt-0.5"></i>
+                <span class="font-medium">{{ order.notes }}</span>
             </div>
-        </div>
-        
-        {% if order.notes %}
-        <div style="background: #fff8e1; padding: 0.75rem; border-radius: 4px; font-size: 0.9rem; margin-bottom: 1rem;">
-            <strong>Notes:</strong> {{ order.notes }}
-        </div>
-        {% endif %}
+            {% endif %}
 
-        {% if is_locked %}
-        <div style="padding: 1rem; background: #f8d7da; color: #721c24; border-radius: 4px; font-weight: bold; text-align: center;">SYSTEM LOCKED - PAY SUBSCRIPTION TO UNLOCK ORDERS</div>
-        {% elif not order.otp_verified %}
-        <form class="unlock-form" action="{{ url_for('verify_otp', order_id=order.id) }}" method="POST">
-            <strong style="align-self: center; color: #856404;">GHOST LOCK:</strong>
-            <input type="text" name="otp" placeholder="4-Digit PIN" required maxlength="4">
-            <button type="submit" class="btn" style="background:#856404; color:white;">Unlock Print Jobs</button>
-        </form>
-        {% else %}
-        <div style="margin-top: 1rem; color: #155724; font-weight: bold; font-size: 0.85rem;">✓ OTP Verified - Prints Unlocked</div>
-        <table class="file-list">
-            <thead>
-                <tr>
-                    <th>File Name</th>
-                    <th>Pages (Selected)</th>
-                    <th>Copies</th>
-                    <th>Config</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for file in order.files %}
-                <tr>
-                    <td>{{ file.file_name }}</td>
-                    <td>{{ file.pages }} ({{ file.page_range }})</td>
-                    <td>{{ file.copies }}</td>
-                    <td style="font-size:0.8rem; color:#666;">
-                        {{ file.color_mode|upper }} | {{ file.sides|upper }}
-                    </td>
-                    <td>
-                        <form action="{{ url_for('print_file', file_id=file.id) }}" method="POST" style="margin:0;">
-                            <button type="submit" class="btn btn-dark">Print File</button>
+            {% if is_locked %}
+            <div class="bg-red-50 text-red-600 p-4 rounded-2xl font-bold text-center text-sm border border-red-200">
+                <i data-lucide="lock" class="w-5 h-5 inline-block mb-1"></i><br>PAY SUBSCRIPTION TO UNLOCK DOCUMENTS
+            </div>
+            {% elif not order.otp_verified %}
+            <div class="bg-slate-900 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 border border-slate-800 relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 opacity-10"><i data-lucide="lock" class="w-48 h-48 text-white"></i></div>
+                <div class="relative z-10 flex items-center gap-4">
+                    <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700"><i data-lucide="key" class="w-8 h-8 text-blue-400"></i></div>
+                    <div>
+                        <h3 class="text-white font-bold text-lg">Encrypted Payload</h3>
+                        <p class="text-slate-400 text-sm">Ask the customer for their 4-digit PIN to decrypt files.</p>
+                    </div>
+                </div>
+                <form class="relative z-10 flex gap-2 w-full sm:w-auto" action="{{ url_for('verify_otp', order_id=order.id) }}" method="POST">
+                    <input type="text" name="otp" placeholder="PIN" required maxlength="4" class="w-full sm:w-24 bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-3 text-white font-mono text-center tracking-widest focus:border-blue-500 outline-none placeholder:text-slate-600">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl transition-colors shrink-0">Decrypt</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="border border-slate-200 rounded-2xl overflow-hidden">
+                <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center gap-2 text-sm font-bold text-slate-700">
+                    <i data-lucide="unlock" class="w-4 h-4 text-emerald-500"></i> Payload Decrypted
+                </div>
+                <div class="divide-y divide-slate-100">
+                    {% for file in order.files %}
+                    <div class="p-4 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white hover:bg-slate-50 transition-colors">
+                        <div class="flex items-center gap-4 overflow-hidden w-full">
+                            <div class="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center shrink-0 border border-red-100"><i data-lucide="file-text" class="w-5 h-5"></i></div>
+                            <div class="truncate">
+                                <div class="font-bold text-slate-800 text-sm truncate">{{ file.file_name }}</div>
+                                <div class="text-xs text-slate-500 font-medium mt-0.5 flex flex-wrap gap-2">
+                                    <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{{ file.pages }} Pages {% if file.page_range != 'All' %}(Range: {{ file.page_range }}){% endif %}</span>
+                                    <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{{ file.copies }}x</span>
+                                    <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded">{{ file.color_mode|upper }}</span>
+                                    <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded">{{ file.sides|upper }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <form action="{{ url_for('print_file', file_id=file.id) }}" method="POST" class="shrink-0 w-full sm:w-auto">
+                            <button type="submit" class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center justify-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> Dispatch</button>
                         </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
-    </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
     {% endfor %}
+    </div>
 {% endblock %}
