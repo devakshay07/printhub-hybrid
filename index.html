@@ -10,8 +10,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,34 +101,7 @@
 
         <!-- PAYMENT METHOD -->
         <div class="fade-in bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 mt-8 mb-12">
-            <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <i data-lucide="credit-card" class="w-5 h-5 text-blue-600"></i> Payment Method
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label class="relative cursor-pointer">
-                    <input type="radio" name="payment_method" value="shop" checked class="radio-custom sr-only" onchange="updatePaymentUI()">
-                    <div class="flex items-center gap-4 p-4 rounded-2xl border-2 border-slate-200 hover:bg-slate-50 transition-all">
-                        <div class="radio-circle w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center transition-colors"></div>
-                        <div class="flex flex-col">
-                            <span class="font-bold text-slate-800">Pay at Shop</span>
-                            <span class="text-xs text-slate-500">Pay directly when you pick up</span>
-                        </div>
-                        <i data-lucide="store" class="w-6 h-6 text-slate-400 ml-auto"></i>
-                    </div>
-                </label>
-                <label class="relative cursor-pointer">
-                    <input type="radio" name="payment_method" value="online" class="radio-custom sr-only" onchange="updatePaymentUI()">
-                    <div class="flex items-center gap-4 p-4 rounded-2xl border-2 border-slate-200 hover:bg-slate-50 transition-all">
-                        <div class="radio-circle w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center transition-colors"></div>
-                        <div class="flex flex-col">
-                            <span class="font-bold text-slate-800">Pay Online</span>
-                            <span class="text-xs text-slate-500">Fast, secure UPI & Cards</span>
-                        </div>
-                        <i data-lucide="smartphone" class="w-6 h-6 text-slate-400 ml-auto"></i>
-                    </div>
-                </label>
-            </div>
-        </div>
+            
     </main>
 
     <!-- FLOATING CHECKOUT FOOTER (Glassmorphism) -->
@@ -552,9 +524,6 @@ function calculateTotal() {
     return total;
 }
 
-function updatePaymentUI() {
-    // Checkbox custom styles handle visual flair in CSS automatically
-}
 
 // ---------------------------------------------------------
 // PDF.js VISUAL SLICER LOGIC
@@ -743,33 +712,10 @@ function handleCheckout() {
         return;
     }
     
-    const isOnline = document.querySelector('input[name="payment_method"]:checked').value === 'online';
-    const totalAmount = calculateTotal();
-    
-    if (isOnline) {
-        var options = {
-            "key": "rzp_test_YourTestKeyHere",
-            "amount": totalAmount * 100,
-            "currency": "INR",
-            "name": currentShopName,
-            "description": "Document Printing Service",
-            "handler": function (response){
-                submitOrder(response.razorpay_payment_id);
-            },
-            "prefill": { "name": name, "contact": phone },
-            "theme": { "color": "#2563eb" }
-        };
-        var rzp1 = new Razorpay(options);
-        rzp1.on('payment.failed', function (response){
-            alert("Payment Failed. Please try again or choose 'Pay at Shop'.");
-        });
-        rzp1.open();
-    } else {
-        submitOrder(null);
-    }
+    submitOrder();
 }
 
-async function submitOrder(paymentId) {
+async function submitOrder() {
     const name = document.getElementById('c_name').value.trim();
     const phone = document.getElementById('c_phone').value.trim();
     const notes = document.getElementById('c_notes').value.trim();
@@ -791,7 +737,7 @@ async function submitOrder(paymentId) {
         const phoneSuffix = phone.length >= 2 ? phone.slice(-2) : "00";
         const otpCode = randomPart + phoneSuffix;
         
-        const initialStatus = paymentId ? 'Paid' : 'Pending';
+        const initialStatus = 'Pending';
         
         overlayTitle.textContent = 'Processing request...';
         const orderId = crypto.randomUUID();
@@ -802,7 +748,7 @@ async function submitOrder(paymentId) {
                 shop_id: currentShopId,
                 customer_name: name, 
                 customer_phone: phone, 
-                notes: paymentId ? `[PAID ONLINE: ${paymentId}] ${notes}` : notes, 
+                notes: notes, 
                 total_amount: totalAmount, 
                 otp: otpCode,
                 status: initialStatus
@@ -813,7 +759,7 @@ async function submitOrder(paymentId) {
         for (let i = 0; i < filesData.length; i++) {
             const f = filesData[i];
             overlayTitle.textContent = `Uploading File ${i+1} of ${filesData.length}`;
-            overlayDesc.textContent = `Slicing pages for ${f.name}...`;
+            overlayDesc.textContent = `Processing pages for ${f.name}...`;
             
             let finalBlob = f.originalFile;
             let finalPages = f.totalPages;
