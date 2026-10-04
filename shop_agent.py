@@ -311,19 +311,19 @@ def settings():
 @app.route('/status/<order_id>', methods=['POST'])
 def update_status(order_id):
     status = request.form.get('status')
-    supabase.table('printhub_orders').update({'status': status}).eq('id', order_id).execute()
+    supabase.table('printhub_orders').update({'status': status}).eq('id', order_id).eq('shop_id', AGENT_STATE['shop_id']).execute()
     return redirect(url_for('dashboard'))
 
 @app.route('/verify_otp/<order_id>', methods=['POST'])
 def verify_otp(order_id):
     submitted_otp = request.form.get('otp', '').strip()
     try:
-        res = supabase.table('printhub_orders').select('otp').eq('id', order_id).execute()
+        res = supabase.table('printhub_orders').select('otp').eq('id', order_id).eq('shop_id', AGENT_STATE['shop_id']).execute()
         if not res.data:
             return "Order not found", 404
         real_otp = res.data[0].get('otp')
         if submitted_otp == real_otp:
-            supabase.table('printhub_orders').update({'otp_verified': True}).eq('id', order_id).execute()
+            supabase.table('printhub_orders').update({'otp_verified': True}).eq('id', order_id).eq('shop_id', AGENT_STATE['shop_id']).execute()
             return redirect(url_for('dashboard'))
         else:
             return "INCORRECT PIN - Nice try ghost.", 403
@@ -333,7 +333,7 @@ def verify_otp(order_id):
 @app.route('/print/<file_id>', methods=['POST'])
 def print_file(file_id):
     try:
-        file_res = supabase.table('printhub_files').select('*').eq('id', file_id).execute()
+        file_res = supabase.table('printhub_files').select('*, printhub_orders!inner(shop_id)').eq('id', file_id).eq('printhub_orders.shop_id', AGENT_STATE['shop_id']).execute()
         if not file_res.data:
             return "File not found in DB", 404
         file_record = file_res.data[0]
@@ -345,8 +345,14 @@ def print_file(file_id):
         local_filename = os.path.join(TEMP_DIR, os.path.basename(storage_path))
         r = requests.get(download_url, stream=True)
         if r.status_code == 200:
+            bytes_downloaded = 0
+            MAX_BYTES = 50 * 1024 * 1024 # 50 MB limit
             with open(local_filename, 'wb') as f:
                 for chunk in r.iter_content(1024):
+                    bytes_downloaded += len(chunk)
+                    if bytes_downloaded > MAX_BYTES:
+                        os.remove(local_filename)
+                        return "File exceeds 50MB maximum limit. Potential DoS attack blocked.", 413
                     f.write(chunk)
         else:
             return f"Failed to download: {r.status_code}", 500
