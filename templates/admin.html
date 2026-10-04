@@ -4,9 +4,9 @@
     {% if is_locked %}
     <div class="bg-red-50 border-2 border-red-500 rounded-3xl p-6 sm:p-8 mb-8 shadow-lg shadow-red-500/10 text-center animate-pulse">
         <i data-lucide="shield-alert" class="w-16 h-16 text-red-500 mx-auto mb-4"></i>
-        <h1 class="text-3xl font-extrabold text-red-700 mb-2 tracking-tight uppercase">Fatal System Lock</h1>
+        <h1 class="text-3xl font-extrabold text-red-700 mb-2 tracking-tight uppercase">Subscription Expired</h1>
         <p class="text-lg font-bold text-red-800 mb-1">Your PrintHub SaaS Subscription has expired.</p>
-        <p class="text-sm text-red-600 font-medium">All hardware relays and print jobs are frozen. Contact Akshay to renew.</p>
+        <p class="text-sm text-red-600 font-medium">All print jobs are currently paused. Contact Akshay to renew.</p>
     </div>
     {% elif in_grace_period %}
     <div class="bg-amber-50 border-2 border-amber-400 rounded-3xl p-6 mb-8 shadow-lg shadow-amber-500/10">
@@ -21,22 +21,22 @@
     {% else %}
     <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-8 flex justify-between items-center shadow-sm">
         <div class="flex items-center gap-2 text-emerald-700 font-semibold text-sm">
-            <i data-lucide="check-circle-2" class="w-5 h-5"></i> Hardware Uplink Secure
+            <i data-lucide="check-circle-2" class="w-5 h-5"></i> System Online
         </div>
         <span class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-lg text-xs font-bold">{{ days_left }} Days Remaining</span>
     </div>
     {% endif %}
 
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2"><i data-lucide="activity" class="w-6 h-6 text-blue-600"></i> Live Terminal Feed</h1>
+        <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2"><i data-lucide="list-ordered" class="w-6 h-6 text-blue-600"></i> Live Order Feed</h1>
         <button onclick="window.location.reload()" class="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-blue-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-all active:scale-95"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Sync</button>
     </div>
     
     {% if not orders %}
     <div class="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm">
-        <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100"><i data-lucide="radio" class="w-8 h-8 text-slate-300"></i></div>
-        <h3 class="text-lg font-bold text-slate-700 mb-1">Awaiting Transmissions</h3>
-        <p class="text-slate-500 text-sm">No active orders right now. Listening to the cloud...</p>
+        <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100"><i data-lucide="inbox" class="w-8 h-8 text-slate-300"></i></div>
+        <h3 class="text-lg font-bold text-slate-700 mb-1">Awaiting Orders</h3>
+        <p class="text-slate-500 text-sm">No active orders right now. Waiting for incoming customer orders...</p>
     </div>
     {% endif %}
 
@@ -69,12 +69,12 @@
                     {% if order.status == 'Pending' %}
                     <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST">
                         <input type="hidden" name="status" value="Paid">
-                        <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"><i data-lucide="coins" class="w-4 h-4"></i> Cash Received</button>
+                        <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"><i data-lucide="coins" class="w-4 h-4"></i> Mark as Paid</button>
                     </form>
                     {% elif order.status == 'Paid' %}
                     <form action="{{ url_for('update_status', order_id=order.id) }}" method="POST">
                         <input type="hidden" name="status" value="Printed">
-                        <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"><i data-lucide="check-check" class="w-4 h-4"></i> Archive Job</button>
+                        <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"><i data-lucide="check-check" class="w-4 h-4"></i> Mark as Complete</button>
                     </form>
                     {% endif %}
                 </div>
@@ -112,19 +112,19 @@
                 <div class="relative z-10 flex items-center gap-4">
                     <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700"><i data-lucide="key" class="w-8 h-8 text-blue-400"></i></div>
                     <div>
-                        <h3 class="text-white font-bold text-lg">Encrypted Payload</h3>
-                        <p class="text-slate-400 text-sm">Ask the customer for their 4-digit PIN to decrypt files.</p>
+                        <h3 class="text-white font-bold text-lg">Secure Document</h3>
+                        <p class="text-slate-400 text-sm">Enter the customer's 4-digit PIN to unlock their files.</p>
                     </div>
                 </div>
                 <form class="relative z-10 flex gap-2 w-full sm:w-auto" action="{{ url_for('verify_otp', order_id=order.id) }}" method="POST">
                     <input type="text" name="otp" placeholder="PIN" required maxlength="4" class="w-full sm:w-24 bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-3 text-white font-mono text-center tracking-widest focus:border-blue-500 outline-none placeholder:text-slate-600">
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl transition-colors shrink-0">Decrypt</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl transition-colors shrink-0">Unlock</button>
                 </form>
             </div>
             {% else %}
             <div class="border border-slate-200 rounded-2xl overflow-hidden">
                 <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center gap-2 text-sm font-bold text-slate-700">
-                    <i data-lucide="unlock" class="w-4 h-4 text-emerald-500"></i> Payload Decrypted
+                    <i data-lucide="unlock" class="w-4 h-4 text-emerald-500"></i> Payload Unlocked
                 </div>
                 <div class="divide-y divide-slate-100">
                     {% for file in order.files %}
@@ -142,7 +142,7 @@
                             </div>
                         </div>
                         <form action="{{ url_for('print_file', file_id=file.id) }}" method="POST" class="shrink-0 w-full sm:w-auto">
-                            <button type="submit" class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center justify-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> Dispatch</button>
+                            <button type="submit" class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center justify-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> Print Document</button>
                         </form>
                     </div>
                     {% endfor %}

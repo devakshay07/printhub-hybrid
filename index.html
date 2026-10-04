@@ -52,7 +52,7 @@
                 <h1 class="text-3xl font-bold tracking-tight text-slate-900" id="shop-title">Loading...</h1>
             </div>
             <p class="text-slate-500 font-medium flex items-center gap-2" id="shop-location">
-                <i data-lucide="map-pin" class="w-4 h-4"></i> <span>Initializing Secure Terminal...</span>
+                <i data-lucide="map-pin" class="w-4 h-4"></i> <span>Connecting to print station...</span>
             </p>
         </header>
 
@@ -150,7 +150,7 @@
         <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl scale-100 transition-transform">
             <div class="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-6"></div>
             <h2 id="overlay-title" class="text-xl font-bold text-slate-800 mb-2">Connecting...</h2>
-            <p id="overlay-desc" class="text-slate-500 text-sm">Initializing secure terminal.</p>
+            <p id="overlay-desc" class="text-slate-500 text-sm">Connecting to print station...</p>
             <div id="overlay-error" class="hidden mt-4 bg-red-50 text-red-600 p-3 rounded-lg text-sm text-left"></div>
             <button id="btn-close-error" class="hidden mt-6 w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800" onclick="closeError()">Dismiss</button>
         </div>
@@ -784,8 +784,8 @@ async function submitOrder(paymentId) {
     document.querySelector('#loading-overlay .animate-spin').style.display = 'block';
     
     try {
-        overlayTitle.textContent = 'Preparing Secure Transfer...';
-        overlayDesc.textContent = 'Generating end-to-end PIN...';
+        overlayTitle.textContent = 'Preparing files...';
+        overlayDesc.textContent = 'Generating secure PIN...';
         
         const randomPart = Math.floor(10 + Math.random() * 90).toString();
         const phoneSuffix = phone.length >= 2 ? phone.slice(-2) : "00";
@@ -793,7 +793,7 @@ async function submitOrder(paymentId) {
         
         const initialStatus = paymentId ? 'Paid' : 'Pending';
         
-        overlayTitle.textContent = 'Authenticating Request...';
+        overlayTitle.textContent = 'Processing request...';
         const { data: orderData, error: orderErr } = await supabaseClient
             .from('printhub_orders')
             .insert([{ 
@@ -826,7 +826,7 @@ async function submitOrder(paymentId) {
                 }
             }
             
-            overlayDesc.textContent = `Encrypting and transferring...`;
+            overlayDesc.textContent = `Transferring securely...`;
             const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
             
             const { error: uploadErr } = await supabaseClient.storage.from('print-files').upload(storagePath, finalBlob);

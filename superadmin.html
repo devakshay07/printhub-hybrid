@@ -17,8 +17,8 @@
     <div id="loginBox" class="min-h-screen flex items-center justify-center p-4">
         <div class="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-slate-100">
             <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4"><i data-lucide="shield" class="w-8 h-8"></i></div>
-            <h2 class="text-2xl font-bold text-slate-800 mb-2">God Mode</h2>
-            <p class="text-sm text-slate-500 mb-6">Enter your Supabase Service Role Key to access the SaaS Throne.</p>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">Superadmin Access</h2>
+            <p class="text-sm text-slate-500 mb-6">Enter your Supabase Service Role Key to access the Administration Panel.</p>
             <input type="password" id="serviceKey" placeholder="eyJhbGciOiJIUzI1NiIs..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none mb-4 font-mono text-xs">
             <button onclick="login()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-colors">Authenticate</button>
         </div>
@@ -28,10 +28,10 @@
     <div id="dashboard" class="hidden p-4 sm:p-8 max-w-7xl mx-auto">
         <div class="flex justify-between items-center mb-8">
             <div class="flex items-center gap-3">
-                <div class="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg"><i data-lucide="database" class="w-6 h-6"></i></div>
+                <div class="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg"><i data-lucide="layout-dashboard" class="w-6 h-6"></i></div>
                 <div>
-                    <h1 class="text-2xl font-bold">The Throne</h1>
-                    <p class="text-slate-500 text-sm font-medium">SaaS Global Overview</p>
+                    <h1 class="text-2xl font-bold">Platform Administration</h1>
+                    <p class="text-slate-500 text-sm font-medium">Tenant Management Overview</p>
                 </div>
             </div>
             <button onclick="location.reload()" class="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-xl font-medium hover:bg-slate-50 flex items-center gap-2"><i data-lucide="log-out" class="w-4 h-4"></i> Lock</button>
@@ -128,8 +128,8 @@
                             <button onclick="addTime('${shop.id}', 30)" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 p-2 rounded-lg transition-colors border border-emerald-200" title="Add 30 Days"><i data-lucide="plus" class="w-4 h-4"></i></button>
                             <button onclick="addTime('${shop.id}', -30)" class="bg-red-50 text-red-600 hover:bg-red-100 p-2 rounded-lg transition-colors border border-red-200" title="Remove 30 Days"><i data-lucide="minus" class="w-4 h-4"></i></button>
                             ${shop.is_active 
-                                ? `<button onclick="toggleKillswitch('${shop.id}', false)" class="bg-slate-900 text-white hover:bg-slate-800 p-2 rounded-lg transition-colors" title="Killswitch"><i data-lucide="power-off" class="w-4 h-4"></i></button>` 
-                                : `<button onclick="toggleKillswitch('${shop.id}', true)" class="bg-blue-600 text-white hover:bg-blue-700 p-2 rounded-lg transition-colors" title="Restore"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>`
+                                ? `<button onclick="toggleSuspend('${shop.id}', false)" class="bg-slate-900 text-white hover:bg-slate-800 p-2 rounded-lg transition-colors" title="Suspend"><i data-lucide="power-off" class="w-4 h-4"></i></button>` 
+                                : `<button onclick="toggleSuspend('${shop.id}', true)" class="bg-blue-600 text-white hover:bg-blue-700 p-2 rounded-lg transition-colors" title="Activate"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>`
                             }
                         </div>
                     </td>
@@ -152,7 +152,7 @@
             loadShops();
         }
 
-        async function toggleKillswitch(id, activate) {
+        async function toggleSuspend(id, activate) {
             if(!confirm(`Are you sure you want to ${activate ? 'RESTORE' : 'SUSPEND'} this tenant?`)) return;
             await supabaseClient.from('printhub_shops').update({ is_active: activate }).eq('id', id);
             loadShops();

@@ -21,11 +21,11 @@
             <div class="flex justify-between h-16">
                 <div class="flex items-center gap-3">
                     <div class="bg-blue-600 p-2 rounded-lg"><i data-lucide="terminal" class="w-5 h-5 text-white"></i></div>
-                    <span class="font-bold text-lg sm:text-xl tracking-tight">PrintHub Enclave</span>
+                    <span class="font-bold text-lg sm:text-xl tracking-tight">PrintHub Agent</span>
                 </div>
                 <div class="flex items-center gap-4 sm:gap-6">
-                    <a href="{{ url_for('dashboard') }}" class="flex items-center gap-2 text-sm font-medium {% if request.endpoint == 'dashboard' %}text-blue-400{% else %}text-slate-300 hover:text-white{% endif %} transition-colors"><i data-lucide="layout-dashboard" class="w-4 h-4"></i><span class="hidden sm:inline">Feed</span></a>
-                    <a href="{{ url_for('settings') }}" class="flex items-center gap-2 text-sm font-medium {% if request.endpoint == 'settings' %}text-blue-400{% else %}text-slate-300 hover:text-white{% endif %} transition-colors"><i data-lucide="settings" class="w-4 h-4"></i><span class="hidden sm:inline">Config</span></a>
+                    <a href="{{ url_for('dashboard') }}" class="flex items-center gap-2 text-sm font-medium {% if request.endpoint == 'dashboard' %}text-blue-400{% else %}text-slate-300 hover:text-white{% endif %} transition-colors"><i data-lucide="layout-dashboard" class="w-4 h-4"></i><span class="hidden sm:inline">Orders</span></a>
+                    <a href="{{ url_for('settings') }}" class="flex items-center gap-2 text-sm font-medium {% if request.endpoint == 'settings' %}text-blue-400{% else %}text-slate-300 hover:text-white{% endif %} transition-colors"><i data-lucide="settings" class="w-4 h-4"></i><span class="hidden sm:inline">Settings</span></a>
                     <a href="{{ url_for('logout') }}" class="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-red-400 transition-colors ml-2 sm:ml-4 border-l border-slate-700 pl-4 sm:pl-6"><i data-lucide="log-out" class="w-4 h-4"></i></a>
                 </div>
             </div>

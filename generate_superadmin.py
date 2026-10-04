@@ -1,0 +1,164 @@
+html_content = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrintHub - SuperAdmin</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+    
+    <!-- LOGIN BOX -->
+    <div id="loginBox" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-slate-100">
+            <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4"><i data-lucide="shield" class="w-8 h-8"></i></div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">God Mode</h2>
+            <p class="text-sm text-slate-500 mb-6">Enter your Supabase Service Role Key to access the SaaS Throne.</p>
+            <input type="password" id="serviceKey" placeholder="eyJhbGciOiJIUzI1NiIs..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none mb-4 font-mono text-xs">
+            <button onclick="login()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-colors">Authenticate</button>
+        </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="hidden p-4 sm:p-8 max-w-7xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg"><i data-lucide="database" class="w-6 h-6"></i></div>
+                <div>
+                    <h1 class="text-2xl font-bold">The Throne</h1>
+                    <p class="text-slate-500 text-sm font-medium">SaaS Global Overview</p>
+                </div>
+            </div>
+            <button onclick="location.reload()" class="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-xl font-medium hover:bg-slate-50 flex items-center gap-2"><i data-lucide="log-out" class="w-4 h-4"></i> Lock</button>
+        </div>
+        
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
+                            <th class="p-4 font-bold">Tenant Info</th>
+                            <th class="p-4 font-bold">Status</th>
+                            <th class="p-4 font-bold">Subscription</th>
+                            <th class="p-4 font-bold text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shopsBody" class="divide-y divide-slate-100">
+                        <!-- Loaded via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        const SUPABASE_URL = 'https://yfnjzhftofbihvwtcsyq.supabase.co';
+        let supabaseClient = null;
+
+        async function login() {
+            const key = document.getElementById('serviceKey').value.trim();
+            if(!key) return;
+            try {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, key);
+                const { data, error } = await supabaseClient.from('printhub_shops').select('*').limit(1);
+                if(error) throw error;
+                
+                document.getElementById('loginBox').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                loadShops();
+            } catch(e) {
+                alert("Invalid Master Key.");
+            }
+        }
+
+        async function loadShops() {
+            const tbody = document.getElementById('shopsBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-500 animate-pulse">Scanning tenant database...</td></tr>';
+            
+            const { data, error } = await supabaseClient.from('printhub_shops').select('*, printhub_settings(*)').order('created_at', { ascending: false });
+            if(error) { tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-red-500">${error.message}</td></tr>`; return; }
+
+            tbody.innerHTML = '';
+            const now = new Date();
+
+            data.forEach(shop => {
+                let statusBadge = '';
+                let daysLeft = 0;
+                
+                if (!shop.is_active) {
+                    statusBadge = '<span class="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold border border-red-200 flex items-center gap-1 w-max"><i data-lucide="shield-alert" class="w-3 h-3"></i> SUSPENDED</span>';
+                    daysLeft = 'N/A';
+                } else if (shop.subscription_expiry) {
+                    const expiry = new Date(shop.subscription_expiry);
+                    const diffTime = expiry - now;
+                    daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (daysLeft >= 0) statusBadge = '<span class="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-xs font-bold border border-emerald-200 flex items-center gap-1 w-max"><i data-lucide="check-circle" class="w-3 h-3"></i> ACTIVE</span>';
+                    else if (daysLeft >= -3) statusBadge = '<span class="bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-xs font-bold border border-amber-200 flex items-center gap-1 w-max"><i data-lucide="alert-triangle" class="w-3 h-3"></i> GRACE PERIOD</span>';
+                    else statusBadge = '<span class="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold border border-red-200 flex items-center gap-1 w-max"><i data-lucide="lock" class="w-3 h-3"></i> LOCKED</span>';
+                } else {
+                    statusBadge = '<span class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-bold border border-blue-200 flex items-center gap-1 w-max"><i data-lucide="infinity" class="w-3 h-3"></i> PERMANENT</span>';
+                    daysLeft = '∞';
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden shrink-0">
+                                ${shop.logo_url ? `<img src="${shop.logo_url}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-slate-400"><i data-lucide="store" class="w-5 h-5"></i></div>`}
+                            </div>
+                            <div>
+                                <div class="font-bold text-slate-800">${shop.shop_name}</div>
+                                <div class="text-xs text-indigo-600 font-mono">${shop.subdomain}.vercel.app</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-4">${statusBadge}</td>
+                    <td class="p-4 text-sm font-medium text-slate-600">${daysLeft} days</td>
+                    <td class="p-4 text-right">
+                        <div class="flex justify-end gap-2">
+                            <button onclick="addTime('${shop.id}', 30)" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 p-2 rounded-lg transition-colors border border-emerald-200" title="Add 30 Days"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                            <button onclick="addTime('${shop.id}', -30)" class="bg-red-50 text-red-600 hover:bg-red-100 p-2 rounded-lg transition-colors border border-red-200" title="Remove 30 Days"><i data-lucide="minus" class="w-4 h-4"></i></button>
+                            ${shop.is_active 
+                                ? `<button onclick="toggleKillswitch('${shop.id}', false)" class="bg-slate-900 text-white hover:bg-slate-800 p-2 rounded-lg transition-colors" title="Killswitch"><i data-lucide="power-off" class="w-4 h-4"></i></button>` 
+                                : `<button onclick="toggleKillswitch('${shop.id}', true)" class="bg-blue-600 text-white hover:bg-blue-700 p-2 rounded-lg transition-colors" title="Restore"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>`
+                            }
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        async function addTime(id, days) {
+            if(!confirm(`Modify subscription by ${days} days?`)) return;
+            const { data } = await supabaseClient.from('printhub_shops').select('subscription_expiry').eq('id', id).single();
+            let current = data.subscription_expiry ? new Date(data.subscription_expiry) : new Date();
+            if(current < new Date()) current = new Date();
+            current.setDate(current.getDate() + days);
+            
+            await supabaseClient.from('printhub_shops').update({ 
+                subscription_expiry: current.toISOString(), is_active: true 
+            }).eq('id', id);
+            loadShops();
+        }
+
+        async function toggleKillswitch(id, activate) {
+            if(!confirm(`Are you sure you want to ${activate ? 'RESTORE' : 'SUSPEND'} this tenant?`)) return;
+            await supabaseClient.from('printhub_shops').update({ is_active: activate }).eq('id', id);
+            loadShops();
+        }
+    </script>
+</body>
+</html>"""
+with open("superadmin.html", "w") as f:
+    f.write(html_content)

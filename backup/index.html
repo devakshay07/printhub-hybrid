@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PrintHub - Cloud Print Service</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+let currentSlicerFileIndex = -1;
+let currentSlicerPdf = null;
+let slicerSelectedPages = new Set();
+
+async function openVisualSlicer(fileId) {
+    const fileIndex = filesData.findIndex(file => file.id === fileId);
+    if (fileIndex === -1) return;
+    currentSlicerFileIndex = fileIndex;
+    const f = filesData[fileIndex];
+    if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
+    
+    document.getElementById('slicer-modal').style.display = 'flex';
+    const grid = document.getElementById('slicer-grid');
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
+    
+    // Parse current range or default to all
+    let initialPages = [];
+    if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
+        initialPages = parsePageRange(f.config.pageRange, f.totalPages);
+    } else {
+        for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
+    }
+    slicerSelectedPages = new Set(initialPages);
+    
+    updateSlicerInput();
+
+    // Load PDF via PDF.js
+    const arrayBuffer = await f.originalFile.arrayBuffer();
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    
+    try {
+        currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        grid.innerHTML = ''; // clear loading
+        
+        // Render pages
+        for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
+            const thumb = document.createElement('div');
+            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
+            thumb.onclick = () => toggleSlicerPage(i-1, thumb);
+            
+            const canvas = document.createElement('canvas');
+            const pageNumStr = document.createElement('div');
+            pageNumStr.className = 'page-number';
+            pageNumStr.innerText = i;
+            
+            const check = document.createElement('div');
+            check.className = 'check-icon';
+            check.innerHTML = '✓';
+            
+            thumb.appendChild(canvas);
+            thumb.appendChild(pageNumStr);
+            thumb.appendChild(check);
+            grid.appendChild(thumb);
+            
+            // Async render canvas
+            currentSlicerPdf.getPage(i).then(page => {
+                const viewport = page.getViewport({scale: 0.6});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
+            });
+        }
+    } catch (e) {
+        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
+        console.error(e);
+    }
+}
+
+function toggleSlicerPage(pageIndex, element) {
+    if (slicerSelectedPages.has(pageIndex)) {
+        slicerSelectedPages.delete(pageIndex);
+        element.classList.remove('selected');
+    } else {
+        slicerSelectedPages.add(pageIndex);
+        element.classList.add('selected');
+    }
+    updateSlicerInput();
+}
+
+function updateSlicerInput() {
+    const input = document.getElementById('slicer-range-input');
+    let sorted = Array.from(slicerSelectedPages).sort((a,b)=>a-b);
+    let ranges = [];
+    let i = 0;
+    while(i < sorted.length) {
+        let start = sorted[i];
+        let end = start;
+        while(i+1 < sorted.length && sorted[i+1] == end + 1) {
+            end = sorted[i+1];
+            i++;
+        }
+        if(start === end) ranges.push(start+1);
+        else ranges.push((start+1) + '-' + (end+1));
+        i++;
+    }
+    input.value = ranges.join(', ');
+}
+
+function syncSlicerGridFromInput() {
+    const inputStr = document.getElementById('slicer-range-input').value;
+    const total = currentSlicerPdf ? currentSlicerPdf.numPages : 100;
+    const parsed = parsePageRange(inputStr, total);
+    slicerSelectedPages = new Set(parsed);
+    
+    const grid = document.getElementById('slicer-grid');
+    for(let i=0; i<grid.children.length; i++) {
+        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
+        else grid.children[i].classList.remove('selected');
+    }
+}
+
+function saveSlicerSelection() {
+    const f = filesData[currentSlicerFileIndex];
+    const newValue = document.getElementById('slicer-range-input').value;
+    document.getElementById('slicer-modal').style.display = 'none';
+    // This triggers renderFileList AND calculateTotal cleanly:
+    updateConfig(f.id, 'pageRange', newValue);
+}
+function closeSlicer() {
+    document.getElementById('slicer-modal').style.display = 'none';
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js">
+let currentSlicerFileIndex = -1;
+let currentSlicerPdf = null;
+let slicerSelectedPages = new Set();
+
+async function openVisualSlicer(fileId) {
+    const fileIndex = filesData.findIndex(file => file.id === fileId);
+    if (fileIndex === -1) return;
+    currentSlicerFileIndex = fileIndex;
+    const f = filesData[fileIndex];
+    if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
+    
+    document.getElementById('slicer-modal').style.display = 'flex';
+    const grid = document.getElementById('slicer-grid');
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
+    
+    // Parse current range or default to all
+    let initialPages = [];
+    if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
+        initialPages = parsePageRange(f.config.pageRange, f.totalPages);
+    } else {
+        for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
+    }
+    slicerSelectedPages = new Set(initialPages);
+    
+    updateSlicerInput();
+
+    // Load PDF via PDF.js
+    const arrayBuffer = await f.originalFile.arrayBuffer();
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    
+    try {
+        currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        grid.innerHTML = ''; // clear loading
+        
+        // Render pages
+        for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
+            const thumb = document.createElement('div');
+            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
+            thumb.onclick = () => toggleSlicerPage(i-1, thumb);
+            
+            const canvas = document.createElement('canvas');
+            const pageNumStr = document.createElement('div');
+            pageNumStr.className = 'page-number';
+            pageNumStr.innerText = i;
+            
+            const check = document.createElement('div');
+            check.className = 'check-icon';
+            check.innerHTML = '✓';
+            
+            thumb.appendChild(canvas);
+            thumb.appendChild(pageNumStr);
+            thumb.appendChild(check);
+            grid.appendChild(thumb);
+            
+            // Async render canvas
+            currentSlicerPdf.getPage(i).then(page => {
+                const viewport = page.getViewport({scale: 0.6});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
+            });
+        }
+    } catch (e) {
+        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
+        console.error(e);
+    }
+}
+
+function toggleSlicerPage(pageIndex, element) {
+    if (slicerSelectedPages.has(pageIndex)) {
+        slicerSelectedPages.delete(pageIndex);
+        element.classList.remove('selected');
+    } else {
+        slicerSelectedPages.add(pageIndex);
+        element.classList.add('selected');
+    }
+    updateSlicerInput();
+}
+
+function updateSlicerInput() {
+    const input = document.getElementById('slicer-range-input');
+    let sorted = Array.from(slicerSelectedPages).sort((a,b)=>a-b);
+    let ranges = [];
+    let i = 0;
+    while(i < sorted.length) {
+        let start = sorted[i];
+        let end = start;
+        while(i+1 < sorted.length && sorted[i+1] == end + 1) {
+            end = sorted[i+1];
+            i++;
+        }
+        if(start === end) ranges.push(start+1);
+        else ranges.push((start+1) + '-' + (end+1));
+        i++;
+    }
+    input.value = ranges.join(', ');
+}
+
+function syncSlicerGridFromInput() {
+    const inputStr = document.getElementById('slicer-range-input').value;
+    const total = currentSlicerPdf ? currentSlicerPdf.numPages : 100;
+    const parsed = parsePageRange(inputStr, total);
+    slicerSelectedPages = new Set(parsed);
+    
+    const grid = document.getElementById('slicer-grid');
+    for(let i=0; i<grid.children.length; i++) {
+        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
+        else grid.children[i].classList.remove('selected');
+    }
+}
+
+function saveSlicerSelection() {
+    const f = filesData[currentSlicerFileIndex];
+    const newValue = document.getElementById('slicer-range-input').value;
+    document.getElementById('slicer-modal').style.display = 'none';
+    // This triggers renderFileList AND calculateTotal cleanly:
+    updateConfig(f.id, 'pageRange', newValue);
+}
+function closeSlicer() {
+    document.getElementById('slicer-modal').style.display = 'none';
+}
+</script>
+<script src="https://checkout.razorpay.com/v1/checkout.js">
+let currentSlicerFileIndex = -1;
+let currentSlicerPdf = null;
+let slicerSelectedPages = new Set();
+
+async function openVisualSlicer(fileId) {
+    const fileIndex = filesData.findIndex(file => file.id === fileId);
+    if (fileIndex === -1) return;
+    currentSlicerFileIndex = fileIndex;
+    const f = filesData[fileIndex];
+    if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
+    
+    document.getElementById('slicer-modal').style.display = 'flex';
+    const grid = document.getElementById('slicer-grid');
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
+    
+    // Parse current range or default to all
+    let initialPages = [];
+    if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
+        initialPages = parsePageRange(f.config.pageRange, f.totalPages);
+    } else {
+        for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
+    }
+    slicerSelectedPages = new Set(initialPages);
+    
+    updateSlicerInput();
+
+    // Load PDF via PDF.js
+    const arrayBuffer = await f.originalFile.arrayBuffer();
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    
+    try {
+        currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        grid.innerHTML = ''; // clear loading
+        
+        // Render pages
+        for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
+            const thumb = document.createElement('div');
+            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
+            thumb.onclick = () => toggleSlicerPage(i-1, thumb);
+            
+            const canvas = document.createElement('canvas');
+            const pageNumStr = document.createElement('div');
+            pageNumStr.className = 'page-number';
+            pageNumStr.innerText = i;
+            
+            const check = document.createElement('div');
+            check.className = 'check-icon';
+            check.innerHTML = '✓';
+            
+            thumb.appendChild(canvas);
+            thumb.appendChild(pageNumStr);
+            thumb.appendChild(check);
+            grid.appendChild(thumb);
+            
+            // Async render canvas
+            currentSlicerPdf.getPage(i).then(page => {
+                const viewport = page.getViewport({scale: 0.6});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
+            });
+        }
+    } catch (e) {
+        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
+        console.error(e);
+    }
+}
+
+function toggleSlicerPage(pageIndex, element) {
+    if (slicerSelectedPages.has(pageIndex)) {
+        slicerSelectedPages.delete(pageIndex);
+        element.classList.remove('selected');
+    } else {
+        slicerSelectedPages.add(pageIndex);
+        element.classList.add('selected');
+    }
+    updateSlicerInput();
+}
+
+function updateSlicerInput() {
+    const input = document.getElementById('slicer-range-input');
+    let sorted = Array.from(slicerSelectedPages).sort((a,b)=>a-b);
+    let ranges = [];
+    let i = 0;
+    while(i < sorted.length) {
+        let start = sorted[i];
+        let end = start;
+        while(i+1 < sorted.length && sorted[i+1] == end + 1) {
+            end = sorted[i+1];
+            i++;
+        }
+        if(start === end) ranges.push(start+1);
+        else ranges.push((start+1) + '-' + (end+1));
+        i++;
+    }
+    input.value = ranges.join(', ');
+}
+
+function syncSlicerGridFromInput() {
+    const inputStr = document.getElementById('slicer-range-input').value;
+    const total = currentSlicerPdf ? currentSlicerPdf.numPages : 100;
+    const parsed = parsePageRange(inputStr, total);
+    slicerSelectedPages = new Set(parsed);
+    
+    const grid = document.getElementById('slicer-grid');
+    for(let i=0; i<grid.children.length; i++) {
+        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
+        else grid.children[i].classList.remove('selected');
+    }
+}
+
+function saveSlicerSelection() {
+    const f = filesData[currentSlicerFileIndex];
+    const newValue = document.getElementById('slicer-range-input').value;
+    document.getElementById('slicer-modal').style.display = 'none';
+    // This triggers renderFileList AND calculateTotal cleanly:
+    updateConfig(f.id, 'pageRange', newValue);
+}
+function closeSlicer() {
+    document.getElementById('slicer-modal').style.display = 'none';
+}
+</script>
+<style>
+:root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --border-hover: #cbd5e1;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --radius: 16px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+body { padding-bottom: 140px;  background: var(--bg); color: var(--text-main); line-height: 1.5; -webkit-font-smoothing: antialiased; padding-bottom: 100px; }
+.container { max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
+
+/* Header */
+header { text-align: center; margin-bottom: 2.5rem; }
+h1 { font-size: 2.5rem; font-weight: 700; color: var(--primary); letter-spacing: -0.5px; margin-bottom: 0.5rem; }
+.subtitle { color: var(--text-muted); font-size: 1.1rem; }
+
+/* Upload Zone */
+.upload-zone { background: var(--surface); border: 2px dashed var(--primary); border-radius: var(--radius); padding: 3rem 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s ease; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+.upload-zone:hover { background: #eff6ff; }
+.upload-icon { font-size: 3rem; margin-bottom: 1rem; }
+.upload-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+.upload-sub { color: var(--text-muted); font-size: 0.95rem; }
+
+/* File Cards */
+.file-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.file-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.file-name { font-weight: 600; font-size: 1.1rem; word-break: break-all; padding-right: 1rem; }
+.file-badge { font-size: 0.8rem; background: #e2e8f0; color: var(--text-main); padding: 0.25rem 0.75rem; border-radius: 99px; font-weight: 500; white-space: nowrap; }
+.btn-remove { background: none; border: none; color: var(--danger); font-size: 0.9rem; font-weight: 500; cursor: pointer; padding: 0.5rem; border-radius: 8px; }
+.btn-remove:hover { background: #fef2f2; }
+
+/* Controls */
+.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+.input-group { display: flex; flex-direction: column; gap: 0.4rem; }
+.input-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+input[type="text"], input[type="number"], input[type="tel"], input[type="email"], select, textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; outline: none; transition: border-color 0.2s; background: var(--surface); }
+input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+textarea { resize: vertical; min-height: 80px; }
+
+/* Customer Form */
+.section-title { font-size: 1.5rem; font-weight: 700; margin: 2.5rem 0 1.5rem 0; }
+.form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2rem; }
+
+/* Payment Options */
+.payment-options { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.pay-option { border: 2px solid var(--border); border-radius: 12px; padding: 1rem; cursor: pointer; text-align: center; font-weight: 600; transition: all 0.2s; background: var(--surface); }
+.pay-option:hover { border-color: var(--border-hover); }
+.pay-option.selected { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
+.pay-option input { display: none; }
+
+/* Sticky Footer */
+.checkout-footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 50; }
+.checkout-footer .container { max-width: 800px; margin: 0 auto; width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0; }
+.total-price { display: flex; flex-direction: column; }
+.total-price span { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+.total-price strong { font-size: 1.75rem; font-weight: 700; color: var(--primary); line-height: 1; }
+.btn-primary { background: var(--primary); color: white; border: none; padding: 1rem 2rem; border-radius: 12px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2); }
+.btn-primary:hover { background: var(--primary-hover); }
+
+/* Modals & Overlays */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
+.modal { background: var(--surface); width: 100%; max-width: 450px; border-radius: 24px; padding: 2.5rem 2rem; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+.modal h2 { font-size: 1.75rem; margin-bottom: 0.5rem; color: var(--success); }
+.modal p { color: var(--text-muted); margin-bottom: 1.5rem; }
+.otp-display { font-size: 4rem; font-weight: 800; color: var(--text-main); letter-spacing: 4px; margin: 1rem 0; background: var(--bg); padding: 1rem; border-radius: 16px; border: 2px dashed var(--border); }
+.modal .warning { color: var(--danger); font-weight: 600; font-size: 0.95rem; background: #fef2f2; padding: 1rem; border-radius: 12px; margin-bottom: 2rem; }
+.loader { border: 4px solid #e2e8f0; border-top: 4px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 1.5rem auto; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Error state */
+.error-msg { color: var(--danger); font-size: 0.95rem; margin-top: 1rem; padding: 1rem; background: #fef2f2; border-radius: 8px; display: none; text-align: left;}
+
+#slicer-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.7); z-index: 2000; flex-direction: column; color: white; font-family: sans-serif; }
+.slicer-header { padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; color: #0f172a; border-bottom: 1px solid #e2e8f0; }
+.slicer-body { padding-bottom: 140px;  flex: 1; overflow-y: auto; padding: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 1rem; align-content: start; }
+.page-thumbnail { position: relative; cursor: pointer; border: 4px solid transparent; border-radius: 6px; overflow: hidden; background: #fff; transition: transform 0.1s; }
+.page-thumbnail:hover { transform: scale(1.02); }
+.page-thumbnail.selected { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+.page-thumbnail canvas { width: 100%; height: auto; display: block; }
+.page-thumbnail .page-number { position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.8); color: white; padding: 4px 10px; font-weight: bold; font-size: 0.9rem; border-top-left-radius: 4px; }
+.page-thumbnail .check-icon { position: absolute; top: 8px; right: 8px; background: #3b82f6; color: white; width: 28px; height: 28px; border-radius: 50%; display: none; align-items: center; justify-content: center; font-size: 1rem; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+.page-thumbnail.selected .check-icon { display: flex; }
+.slicer-footer { padding: 1.5rem 2rem; background: #f8fafc; color: #0f172a; display: flex; gap: 1rem; align-items: center; border-top: 1px solid #e2e8f0; }
+.slicer-footer input { flex: 1; background: #ffffff; color: #0f172a; color: white; border: 1px solid #444; padding: 0.8rem; border-radius: 6px; font-size: 1rem; }
+
+/* Responsive Mobile Adjustments */
+@media (max-width: 768px) {
+    .container { padding: 1rem; }
+    .config-grid { grid-template-columns: 1fr !important; gap: 1rem; }
+    .payment-options { flex-direction: column; }
+    .pay-option { width: 100%; box-sizing: border-box; }
+    .slicer-header { flex-direction: row; padding: 1rem; }
+    .slicer-header h2 { font-size: 1.2rem; margin: 0; }
+    .slicer-footer { flex-direction: column; gap: 0.5rem; padding: 1rem; }
+    .slicer-footer input { padding: 0.5rem; }
+    .slicer-footer input { width: 100%; box-sizing: border-box; }
+    .slicer-footer button { width: 100%; }
+    .slicer-body { padding-bottom: 140px;  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); padding: 1rem; }
+    .checkout-footer .container { flex-direction: column; gap: 1rem; align-items: stretch !important; text-align: center; }
+    .file-header { flex-direction: column; align-items: flex-start !important; gap: 1rem; }
+    .btn-remove { width: 100%; }
+}
+</style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js">
+let currentSlicerFileIndex = -1;
+let currentSlicerPdf = null;
+let slicerSelectedPages = new Set();
+
+async function openVisualSlicer(fileId) {
+    const fileIndex = filesData.findIndex(file => file.id === fileId);
+    if (fileIndex === -1) return;
+    currentSlicerFileIndex = fileIndex;
+    const f = filesData[fileIndex];
+    if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
+    
+    document.getElementById('slicer-modal').style.display = 'flex';
+    const grid = document.getElementById('slicer-grid');
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
+    
+    // Parse current range or default to all
+    let initialPages = [];
+    if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
+        initialPages = parsePageRange(f.config.pageRange, f.totalPages);
+    } else {
+        for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
+    }
+    slicerSelectedPages = new Set(initialPages);
+    
+    updateSlicerInput();
+
+    // Load PDF via PDF.js
+    const arrayBuffer = await f.originalFile.arrayBuffer();
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    
+    try {
+        currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        grid.innerHTML = ''; // clear loading
+        
+        // Render pages
+        for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
+            const thumb = document.createElement('div');
+            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
+            thumb.onclick = () => toggleSlicerPage(i-1, thumb);
+            
+            const canvas = document.createElement('canvas');
+            const pageNumStr = document.createElement('div');
+            pageNumStr.className = 'page-number';
+            pageNumStr.innerText = i;
+            
+            const check = document.createElement('div');
+            check.className = 'check-icon';
+            check.innerHTML = '✓';
+            
+            thumb.appendChild(canvas);
+            thumb.appendChild(pageNumStr);
+            thumb.appendChild(check);
+            grid.appendChild(thumb);
+            
+            // Async render canvas
+            currentSlicerPdf.getPage(i).then(page => {
+                const viewport = page.getViewport({scale: 0.6});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
+            });
+        }
+    } catch (e) {
+        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
+        console.error(e);
+    }
+}
+
+function toggleSlicerPage(pageIndex, element) {
+    if (slicerSelectedPages.has(pageIndex)) {
+        slicerSelectedPages.delete(pageIndex);
+        element.classList.remove('selected');
+    } else {
+        slicerSelectedPages.add(pageIndex);
+        element.classList.add('selected');
+    }
+    updateSlicerInput();
+}
+
+function updateSlicerInput() {
+    const input = document.getElementById('slicer-range-input');
+    let sorted = Array.from(slicerSelectedPages).sort((a,b)=>a-b);
+    let ranges = [];
+    let i = 0;
+    while(i < sorted.length) {
+        let start = sorted[i];
+        let end = start;
+        while(i+1 < sorted.length && sorted[i+1] == end + 1) {
+            end = sorted[i+1];
+            i++;
+        }
+        if(start === end) ranges.push(start+1);
+        else ranges.push((start+1) + '-' + (end+1));
+        i++;
+    }
+    input.value = ranges.join(', ');
+}
+
+function syncSlicerGridFromInput() {
+    const inputStr = document.getElementById('slicer-range-input').value;
+    const total = currentSlicerPdf ? currentSlicerPdf.numPages : 100;
+    const parsed = parsePageRange(inputStr, total);
+    slicerSelectedPages = new Set(parsed);
+    
+    const grid = document.getElementById('slicer-grid');
+    for(let i=0; i<grid.children.length; i++) {
+        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
+        else grid.children[i].classList.remove('selected');
+    }
+}
+
+function saveSlicerSelection() {
+    const f = filesData[currentSlicerFileIndex];
+    const newValue = document.getElementById('slicer-range-input').value;
+    document.getElementById('slicer-modal').style.display = 'none';
+    // This triggers renderFileList AND calculateTotal cleanly:
+    updateConfig(f.id, 'pageRange', newValue);
+}
+function closeSlicer() {
+    document.getElementById('slicer-modal').style.display = 'none';
+}
+</script>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>PrintHub</h1>
+        <p class="subtitle">Upload files, configure settings, and pickup at the shop.</p>
+    </header>
+    
+    <div class="upload-zone" id="dropzone" onclick="document.getElementById('file-input').click()">
+        <div class="upload-icon">📄</div>
+        <div class="upload-title">Tap here to select files</div>
+        <div class="upload-sub">PDF, PNG, JPG supported</div>
+        <input type="file" id="file-input" multiple accept=".pdf,.png,.jpg,.jpeg" style="display:none">
+    </div>
+
+    <div id="file-list"></div>
+
+    <h2 class="section-title">Your Details</h2>
+    <div class="form-card">
+        <div class="input-group">
+            <label>Full Name</label>
+            <input type="text" id="c_name" placeholder="John Doe">
+        </div>
+        <div class="input-group">
+            <label>Phone Number (Required for pickup)</label>
+            <input type="tel" id="c_phone" placeholder="9876543210">
+        </div>
+        <div class="input-group">
+            <label>Special Instructions (Optional)</label>
+            <textarea id="c_notes" placeholder="Staple the pages, spiral binding, etc..."></textarea>
+        </div>
+    </div>
+
+    <h2 class="section-title">Payment Method</h2>
+    <div class="form-card" style="margin-bottom: 4rem;">
+        <div class="payment-options">
+            <label class="pay-option selected" id="opt_shop">
+                <input type="radio" name="payment_method" value="shop" checked onchange="updatePaymentUI()">
+                Pay at Shop
+            </label>
+            <label class="pay-option" id="opt_online">
+                <input type="radio" name="payment_method" value="online" onchange="updatePaymentUI()">
+                Pay Online (Razorpay)
+            </label>
+        </div>
+    </div>
+</div>
+
+<div class="checkout-footer">
+    <div class="container">
+        <div class="total-price">
+            <span>Total Amount</span>
+            <strong id="total-price">₹0.00</strong>
+        </div>
+        <button class="btn-primary" onclick="handleCheckout()">Confirm Order</button>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="overlay" id="loading-overlay" style="display: flex;">
+    <div class="modal">
+        <div class="loader"></div>
+        <h2 id="overlay-title" style="color: var(--primary);">Connecting...</h2>
+        <p id="overlay-desc">Please wait while we initialize the service.</p>
+        <div class="error-msg" id="overlay-error"></div>
+        <button class="btn-primary" id="btn-close-error" style="display: none; width: 100%; margin-top: 1rem;" onclick="closeError()">Close</button>
+    </div>
+</div>
+
+<!-- OTP Success Modal -->
+<div class="overlay" id="otp-modal">
+    <div class="modal">
+        <h2>Order Successful!</h2>
+        <p>Your files have been securely sent to the shop printer.</p>
+        
+        <div class="otp-display" id="otp-display-value">1234</div>
+        
+        <div class="warning">
+            ⚠️ Take a screenshot now!<br>
+            This PIN will disappear forever when you close this window. You need it to unlock your prints.
+        </div>
+        
+        <button class="btn-primary" style="width: 100%;" onclick="finishOrder()">I have saved the PIN</button>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- JS LOGIC -->
+<!-- ========================================== -->
+<script>
+const SUPABASE_URL = 'https://yfnjzhftofbihvwtcsyq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmbmp6aGZ0b2ZiaWh2d3Rjc3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNzI4NzksImV4cCI6MjEwNTg0ODg3OX0.hw5XMsjmgHkUvHYs03vdRSZdhHqznjdkQHp_vwKO-Lg';
+let supabaseClient;
+try {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    document.getElementById('loading-overlay').style.display = 'none';
+} catch (e) {
+    showError("Failed to initialize database connection.");
+}
+
+let filesData = [];
+let RATES = { bw: 2.0, color: 10.0 }; 
+let SHOP_ONLINE = true;
+
+let currentShopId = null;
+let currentShopName = "PrintHub";
+
+async function initializeTenant() {
+    try {
+        let hostname = window.location.hostname;
+        let subdomain = 'demo'; // Default for local testing
+        
+        if (hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname.includes('.')) {
+            // Extract subdomain (e.g. 'akshay' from 'akshay.printhub.com')
+            // For vercel apps like printhub-hybrid.vercel.app, we might need a specific check, but for MVP:
+            subdomain = hostname.split('.')[0]; 
+            // Fallback for vercel default domains during testing
+            if (hostname.includes('vercel.app')) subdomain = 'demo';
+        }
+
+        // 1. Fetch Shop Details
+        const { data: shopData, error: shopErr } = await supabaseClient.from('printhub_shops').select('id, shop_name, is_active, subscription_expiry, location, logo_url').eq('subdomain', subdomain).single();
+        
+        if (!shopData) {
+            document.body.innerHTML = `<div style="padding: 3rem; text-align: center; font-family: sans-serif;"><h1>404 - Shop Not Found</h1><p>The print shop at subdomain '${subdomain}' does not exist on our platform.</p></div>`;
+            return;
+        }
+        
+        if (shopData.is_active === false) {
+            document.body.innerHTML = `<div style="padding: 3rem; text-align: center; font-family: sans-serif;"><h1 style="color: #ef4444;">Shop Suspended</h1><p>This shop has been manually suspended.</p></div>`;
+            return;
+        }
+        
+        // Automated 3-Day Grace Period Killswitch
+        if (shopData.subscription_expiry) {
+            const expiryDate = new Date(shopData.subscription_expiry);
+            const currentDate = new Date();
+            const gracePeriodEnd = new Date(expiryDate.getTime() + (3 * 24 * 60 * 60 * 1000));
+            
+            if (currentDate > gracePeriodEnd) {
+                document.body.innerHTML = `<div style="padding: 3rem; text-align: center; font-family: sans-serif;"><h1 style="color: #ef4444;">Service Unavailable</h1><p>This shop's SaaS subscription expired 3 days ago. The system has automatically locked the terminal.</p></div>`;
+                return;
+            } else if (currentDate > expiryDate) {
+                // Shop is in grace period. We can silently log it or show a tiny warning for the owner.
+                console.warn(`[SYSTEM] Shop is in 72-hour grace period. Expires entirely on ${gracePeriodEnd}`);
+            }
+        }
+        
+        currentShopId = shopData.id;
+        currentShopName = shopData.shop_name;
+        
+        // Render Branding
+        let headerHtml = currentShopName;
+        if (shopData.logo_url) {
+            headerHtml = `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
+                            <img src="${shopData.logo_url}" style="height: 64px; width: 64px; object-fit: cover; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                            <span>${currentShopName}</span>
+                          </div>`;
+        }
+        document.querySelector('header h1').innerHTML = headerHtml;
+        document.title = currentShopName + " - PrintHub SaaS";
+        
+        // Render Location
+        if (shopData.location) {
+            const locEl = document.createElement('div');
+            locEl.innerHTML = `📍 ${shopData.location}`;
+            locEl.style.cssText = "color: #64748b; font-size: 0.95rem; margin-top: 0.5rem; font-weight: 500;";
+            document.querySelector('.subtitle').insertAdjacentElement('afterend', locEl);
+        }
+
+        // 2. Fetch Shop Settings
+        const { data: settingsData } = await supabaseClient.from('printhub_settings').select('price_bw, price_color, is_accepting_orders, offer_banner').eq('shop_id', currentShopId).single();
+        
+        if (settingsData) {
+            RATES.bw = parseFloat(settingsData.price_bw) || 2.0;
+            RATES.color = parseFloat(settingsData.price_color) || 10.0;
+            SHOP_ONLINE = settingsData.is_accepting_orders;
+            
+            // Render Offer Banner
+            if (settingsData.offer_banner) {
+                const banner = document.createElement('div');
+                banner.innerHTML = `🎉 <strong>Special Offer:</strong> ${settingsData.offer_banner}`;
+                banner.style.cssText = "background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 12px; text-align: center; border-radius: 8px; margin-bottom: 2rem; font-size: 0.95rem; box-shadow: 0 4px 6px -1px rgba(37,99,235,0.2);";
+                document.querySelector('.upload-zone').insertAdjacentElement('beforebegin', banner);
+            }
+            
+            if (!SHOP_ONLINE) {
+                document.getElementById('dropzone').style.display = 'none';
+                document.getElementById('dropzone').insertAdjacentHTML('afterend', '<div style="background:#fef2f2; color:#ef4444; padding:2rem; border-radius:16px; text-align:center; font-weight:bold; font-size:1.2rem; border:2px dashed #ef4444;">Shop is currently offline. We are not accepting orders right now.</div>');
+            }
+        }
+    } catch (e) {
+        console.error("Could not initialize tenant", e);
+    }
+}
+initializeTenant();
+
+function updatePaymentUI() {
+    const isOnline = document.querySelector('input[name="payment_method"]:checked').value === 'online';
+    document.getElementById('opt_shop').className = isOnline ? 'pay-option' : 'pay-option selected';
+    document.getElementById('opt_online').className = isOnline ? 'pay-option selected' : 'pay-option';
+}
+
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = 'var(--primary)'; dropzone.style.background = '#eff6ff'; });
+dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = 'var(--primary)'; dropzone.style.background = 'var(--surface)'; });
+dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.style.background = 'var(--surface)';
+    handleFiles(e.dataTransfer.files);
+});
+document.getElementById('file-input').addEventListener('change', (e) => handleFiles(e.target.files));
+
+async function handleFiles(files) {
+    for (let f of files) {
+        let totalPages = 1;
+        if (f.type === 'application/pdf') {
+            try {
+                const arrayBuffer = await f.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                totalPages = pdfDoc.getPageCount();
+            } catch (err) {
+                console.error("PDF Parse error:", err);
+            }
+        }
+        
+        filesData.push({
+            id: Math.random().toString(36).substr(2, 9),
+            originalFile: f,
+            name: f.name,
+            type: f.type,
+            totalPages: totalPages,
+            config: {
+                copies: 1,
+                colorMode: 'bw',
+                sides: 'single',
+                pageRange: ''
+            }
+        });
+    }
+    renderFiles();
+}
+
+function renderFiles() {
+    const container = document.getElementById('file-list');
+    container.innerHTML = '';
+    
+    filesData.forEach((f) => {
+        const div = document.createElement('div');
+        div.className = 'file-card';
+        div.innerHTML = `
+            <div class="file-header" style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    ${f.type.startsWith('image/') ? `<img src="${URL.createObjectURL(f.originalFile)}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">` : '<div style="width: 40px; height: 40px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">📄</div>'}
+                    <div class="file-name" style="margin: 0;">${f.name} <span class="file-badge">${f.type === 'application/pdf' ? f.totalPages + ' Pages' : 'Image'}</span></div>
+                </div>
+                <button class="btn-remove" onclick="removeFile('${f.id}')">Remove</button>
+            </div>
+            <div class="config-grid">
+                <div class="input-group">
+                    <label>Copies</label>
+                    <input type="number" min="1" value="${f.config.copies}" onchange="updateConfig('${f.id}', 'copies', this.value)">
+                </div>
+                <div class="input-group">
+                    <label>Color</label>
+                    <select onchange="updateConfig('${f.id}', 'colorMode', this.value)">
+                        <option value="bw" ${f.config.colorMode === 'bw' ? 'selected' : ''}>Black & White</option>
+                        <option value="color" ${f.config.colorMode === 'color' ? 'selected' : ''}>Color</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Sides</label>
+                    <select onchange="updateConfig('${f.id}', 'sides', this.value)">
+                        <option value="single" ${f.config.sides === 'single' ? 'selected' : ''}>Single Sided</option>
+                        <option value="double" ${f.config.sides === 'double' ? 'selected' : ''}>Double Sided</option>
+                    </select>
+                </div>
+                ${f.type === 'application/pdf' ? `
+                <div class="input-group" style="flex: 2; min-width: 100%;">
+                    <label>Specific Pages</label>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <input type="text" style="flex: 1; min-width: 150px;" placeholder="e.g. 1-3, 5 (Leave blank for all)" value="${f.config.pageRange}" onchange="updateConfig('${f.id}', 'pageRange', this.value)">
+                        <button class="btn-primary" style="padding: 0.75rem 1rem; white-space: nowrap; display: flex; align-items: center; gap: 0.5rem; background: #3b82f6;" onclick="openVisualSlicer('${f.id}')">
+                            👁️ Visual Select
+                        </button>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+        container.appendChild(div);
+    });
+    calculateTotal();
+}
+
+function updateConfig(id, key, value) {
+    const f = filesData.find(x => x.id === id);
+    if (f) f.config[key] = value;
+    calculateTotal();
+}
+
+function removeFile(id) {
+    filesData = filesData.filter(x => x.id !== id);
+    renderFiles();
+}
+
+function parsePageRange(rangeStr, totalPages) {
+    if (!rangeStr.trim()) return Array.from({length: totalPages}, (_, i) => i);
+    const pages = new Set();
+    const parts = rangeStr.split(',');
+    for (const part of parts) {
+        if (part.includes('-')) {
+            const [start, end] = part.split('-').map(n => parseInt(n.trim()));
+            if (!isNaN(start) && !isNaN(end)) {
+                for (let i = start; i <= end; i++) if (i >= 1 && i <= totalPages) pages.add(i - 1);
+            }
+        } else {
+            const num = parseInt(part.trim());
+            if (!isNaN(num) && num >= 1 && num <= totalPages) pages.add(num - 1);
+        }
+    }
+    return Array.from(pages).sort((a, b) => a - b);
+}
+
+function calculateTotal() {
+    let total = 0;
+    filesData.forEach(f => {
+        let pagesToPrint = f.totalPages;
+        if (f.type === 'application/pdf' && f.config.pageRange) {
+            pagesToPrint = parsePageRange(f.config.pageRange, f.totalPages).length;
+        }
+        const rate = f.config.colorMode === 'color' ? RATES.color : RATES.bw;
+        total += (pagesToPrint * f.config.copies * rate);
+    });
+    document.getElementById('total-price').textContent = '₹' + total.toFixed(2);
+    return total;
+}
+
+function showError(title, msg) {
+    const overlay = document.getElementById('loading-overlay');
+    document.querySelector('.loader').style.display = 'none';
+    document.getElementById('overlay-title').textContent = title || 'Error';
+    document.getElementById('overlay-title').style.color = 'var(--danger)';
+    document.getElementById('overlay-desc').textContent = '';
+    
+    if (msg) {
+        const errEl = document.getElementById('overlay-error');
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+    }
+    document.getElementById('btn-close-error').style.display = 'block';
+    overlay.style.display = 'flex';
+}
+
+function closeError() {
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.querySelector('.loader').style.display = 'block';
+    document.getElementById('overlay-error').style.display = 'none';
+    document.getElementById('btn-close-error').style.display = 'none';
+    document.getElementById('overlay-title').style.color = 'var(--primary)';
+}
+
+async function processPdf(fileObj, pageIndices) {
+    const arrayBuffer = await fileObj.arrayBuffer();
+    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+    const newPdf = await PDFLib.PDFDocument.create();
+    const copiedPages = await newPdf.copyPages(pdfDoc, pageIndices);
+    copiedPages.forEach((page) => newPdf.addPage(page));
+    const pdfBytes = await newPdf.save();
+    return new Blob([pdfBytes], { type: 'application/pdf' });
+}
+
+function handleCheckout() {
+    if (filesData.length === 0) return alert('Please upload at least one file first.');
+    const name = document.getElementById('c_name').value.trim();
+    const phone = document.getElementById('c_phone').value.trim();
+    
+    if (!name || !phone) return alert('Name and phone number are required.');
+    
+    const isOnline = document.querySelector('input[name="payment_method"]:checked').value === 'online';
+    const totalAmount = calculateTotal();
+    
+    if (isOnline) {
+        // Mock Razorpay Integration for Frontend
+        // Note: A real implementation requires a server to create an Order ID using Razorpay Secrets.
+        var options = {
+            "key": "rzp_test_YourTestKeyHere", // Replace with real test key or live key
+            "amount": totalAmount * 100, // Amount in paise
+            "currency": "INR",
+            "name": "PrintHub",
+            "description": "Document Printing Service",
+            "handler": function (response){
+                // On successful payment
+                submitOrder(response.razorpay_payment_id);
+            },
+            "prefill": {
+                "name": name,
+                "contact": phone
+            },
+            "theme": { "color": "#2563eb" }
+        };
+        var rzp1 = new Razorpay(options);
+        rzp1.on('payment.failed', function (response){
+            alert("Payment Failed. Please try again or choose 'Pay at Shop'.");
+        });
+        rzp1.open();
+    } else {
+        submitOrder(null);
+    }
+}
+
+async function submitOrder(paymentId) {
+    const name = document.getElementById('c_name').value.trim();
+    const phone = document.getElementById('c_phone').value.trim();
+    const email = document.getElementById('c_email') ? document.getElementById('c_email').value.trim() : '';
+    const notes = document.getElementById('c_notes').value.trim();
+    const totalAmount = calculateTotal();
+    
+    const overlay = document.getElementById('loading-overlay');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlayDesc = document.getElementById('overlay-desc');
+    
+    overlay.style.display = 'flex';
+    document.querySelector('.loader').style.display = 'block';
+    
+    try {
+        overlayTitle.textContent = 'Preparing Files...';
+        overlayDesc.textContent = 'Generating secure PIN...';
+        
+        // Prevent OTP collision by combining random digits with phone number
+        const randomPart = Math.floor(10 + Math.random() * 90).toString();
+        const phoneSuffix = phone.length >= 2 ? phone.slice(-2) : "00";
+        const otpCode = randomPart + phoneSuffix;
+        
+        // Determine status based on payment
+        const initialStatus = paymentId ? 'Paid' : 'Pending';
+        
+        // 1. Create Order
+        overlayTitle.textContent = 'Uploading...';
+        const { data: orderData, error: orderErr } = await supabaseClient
+            .from('printhub_orders')
+            .insert([{ 
+                shop_id: currentShopId,
+                customer_name: name, 
+                customer_email: email, 
+                customer_phone: phone, 
+                notes: paymentId ? `[PAID ONLINE: ${paymentId}] ${notes}` : notes, 
+                total_amount: totalAmount, 
+                otp: otpCode,
+                status: initialStatus
+            }])
+            .select();
+            
+        if (orderErr) throw new Error("Order Creation Failed: " + (orderErr.message || JSON.stringify(orderErr)));
+        const orderId = orderData[0].id;
+
+        // 2. Process Files
+        for (let i = 0; i < filesData.length; i++) {
+            const f = filesData[i];
+            overlayDesc.textContent = `Processing file ${i+1} of ${filesData.length}`;
+            
+            let finalBlob = f.originalFile;
+            let finalPages = f.totalPages;
+            
+            if (f.type === 'application/pdf' && f.config.pageRange) {
+                const pageIndices = parsePageRange(f.config.pageRange, f.totalPages);
+                if (pageIndices.length > 0) {
+                    finalBlob = await processPdf(f.originalFile, pageIndices);
+                    finalPages = pageIndices.length;
+                }
+            }
+            
+            const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            
+            const { error: uploadErr } = await supabaseClient.storage.from('print-files').upload(storagePath, finalBlob);
+            if (uploadErr) throw new Error("File Upload Failed: " + (uploadErr.message || JSON.stringify(uploadErr)));
+            
+            const { error: fileDbErr } = await supabaseClient.from('printhub_files').insert([{
+                order_id: orderId,
+                file_name: f.name,
+                storage_path: storagePath,
+                pages: finalPages,
+                copies: parseInt(f.config.copies),
+                color_mode: f.config.colorMode,
+                sides: f.config.sides,
+                page_range: f.config.pageRange || 'All'
+            }]);
+            if (fileDbErr) throw new Error("Database Sync Failed: " + (fileDbErr.message || JSON.stringify(fileDbErr)));
+        }
+
+        // Hide loader, show OTP modal
+        document.getElementById('loading-overlay').style.display = 'none';
+        
+        document.getElementById('otp-display-value').textContent = otpCode;
+        document.getElementById('otp-modal').style.display = 'flex';
+
+    } catch (e) {
+        console.error("Submission Error:", e);
+        showError("Upload Failed", e.message || "Unknown error occurred.");
+    }
+}
+
+function finishOrder() {
+    window.location.reload();
+}
+
+let currentSlicerFileIndex = -1;
+let currentSlicerPdf = null;
+let slicerSelectedPages = new Set();
+
+async function openVisualSlicer(fileId) {
+    const fileIndex = filesData.findIndex(file => file.id === fileId);
+    if (fileIndex === -1) return;
+    currentSlicerFileIndex = fileIndex;
+    const f = filesData[fileIndex];
+    if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
+    
+    document.getElementById('slicer-modal').style.display = 'flex';
+    const grid = document.getElementById('slicer-grid');
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
+    
+    // Parse current range or default to all
+    let initialPages = [];
+    if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
+        initialPages = parsePageRange(f.config.pageRange, f.totalPages);
+    } else {
+        for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
+    }
+    slicerSelectedPages = new Set(initialPages);
+    
+    updateSlicerInput();
+
+    // Load PDF via PDF.js
+    const arrayBuffer = await f.originalFile.arrayBuffer();
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    
+    try {
+        currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        grid.innerHTML = ''; // clear loading
+        
+        // Render pages
+        for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
+            const thumb = document.createElement('div');
+            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
+            thumb.onclick = () => toggleSlicerPage(i-1, thumb);
+            
+            const canvas = document.createElement('canvas');
+            const pageNumStr = document.createElement('div');
+            pageNumStr.className = 'page-number';
+            pageNumStr.innerText = i;
+            
+            const check = document.createElement('div');
+            check.className = 'check-icon';
+            check.innerHTML = '✓';
+            
+            thumb.appendChild(canvas);
+            thumb.appendChild(pageNumStr);
+            thumb.appendChild(check);
+            grid.appendChild(thumb);
+            
+            // Async render canvas
+            currentSlicerPdf.getPage(i).then(page => {
+                const viewport = page.getViewport({scale: 0.6});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
+            });
+        }
+    } catch (e) {
+        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
+        console.error(e);
+    }
+}
+
+function toggleSlicerPage(pageIndex, element) {
+    if (slicerSelectedPages.has(pageIndex)) {
+        slicerSelectedPages.delete(pageIndex);
+        element.classList.remove('selected');
+    } else {
+        slicerSelectedPages.add(pageIndex);
+        element.classList.add('selected');
+    }
+    updateSlicerInput();
+}
+
+function updateSlicerInput() {
+    const input = document.getElementById('slicer-range-input');
+    let sorted = Array.from(slicerSelectedPages).sort((a,b)=>a-b);
+    let ranges = [];
+    let i = 0;
+    while(i < sorted.length) {
+        let start = sorted[i];
+        let end = start;
+        while(i+1 < sorted.length && sorted[i+1] == end + 1) {
+            end = sorted[i+1];
+            i++;
+        }
+        if(start === end) ranges.push(start+1);
+        else ranges.push((start+1) + '-' + (end+1));
+        i++;
+    }
+    input.value = ranges.join(', ');
+}
+
+function syncSlicerGridFromInput() {
+    const inputStr = document.getElementById('slicer-range-input').value;
+    const total = currentSlicerPdf ? currentSlicerPdf.numPages : 100;
+    const parsed = parsePageRange(inputStr, total);
+    slicerSelectedPages = new Set(parsed);
+    
+    const grid = document.getElementById('slicer-grid');
+    for(let i=0; i<grid.children.length; i++) {
+        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
+        else grid.children[i].classList.remove('selected');
+    }
+}
+
+function saveSlicerSelection() {
+    const f = filesData[currentSlicerFileIndex];
+    const newValue = document.getElementById('slicer-range-input').value;
+    document.getElementById('slicer-modal').style.display = 'none';
+    // This triggers renderFileList AND calculateTotal cleanly:
+    updateConfig(f.id, 'pageRange', newValue);
+}
+function closeSlicer() {
+    document.getElementById('slicer-modal').style.display = 'none';
+}
+</script>
+
+<!-- Visual Slicer Modal -->
+<div id="slicer-modal">
+    <div class="slicer-header">
+        <h2 style="margin: 0; color: #0f172a;">Visual Smart Slicer</h2>
+        <button class="btn-primary" style="background: #444;" onclick="closeSlicer()">Cancel</button>
+    </div>
+    <div class="slicer-body" id="slicer-grid"></div>
+    <div class="slicer-footer">
+        <label style="font-weight: bold;">Selected Pages:</label>
+        <input type="text" id="slicer-range-input" onkeyup="syncSlicerGridFromInput()" placeholder="e.g. 1-3, 5, 7">
+        <button class="btn-primary" onclick="saveSlicerSelection()">Confirm Selection</button>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THE THRONE - PrintHub Superadmin</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0a0a0a; color: #fff; margin: 0; padding: 2rem; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #FF9B51; border-bottom: 2px solid #333; padding-bottom: 1rem; text-transform: uppercase; letter-spacing: 2px; }
+        .login-box { background: #1a1a1a; padding: 2rem; border-radius: 8px; max-width: 500px; margin: 5rem auto; border: 1px solid #333; }
+        input { width: 100%; padding: 0.75rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; margin-bottom: 1rem; box-sizing: border-box; font-family: monospace; }
+        button { background: #FF9B51; color: #000; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; width: 100%; }
+        button:hover { background: #e88d49; }
+        .dashboard { display: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 2rem; background: #1a1a1a; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid #333; }
+        th { background: #222; color: #888; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px; }
+        .status-badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+        .status-active { background: rgba(40, 167, 69, 0.2); color: #28a745; border: 1px solid #28a745; }
+        .status-grace { background: rgba(255, 193, 7, 0.2); color: #ffc107; border: 1px solid #ffc107; }
+        .status-dead { background: rgba(220, 53, 69, 0.2); color: #dc3545; border: 1px solid #dc3545; }
+        .action-btn { background: #333; color: white; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; margin-right: 0.5rem; width: auto; }
+        .action-btn:hover { background: #444; }
+        .action-btn.red { background: #dc3545; color: white; }
+        .action-btn.green { background: #28a745; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="login-box" id="loginBox">
+            <h2 style="margin-top:0; color:#FF9B51; text-align:center;">GOD MODE</h2>
+            <p style="text-align:center; color:#888; font-size:0.9rem;">Enter your Supabase Service Role Key to access the SaaS Throne.</p>
+            <input type="password" id="serviceKey" placeholder="eyJhbGciOiJIUzI1NiIs...">
+            <button onclick="login()">Authenticate</button>
+        </div>
+
+        <div class="dashboard" id="dashboard">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <h1>The Throne - SaaS Overview</h1>
+                <button onclick="location.reload()" style="width: auto; background: #333; color: white;">Logout / Lock</button>
+            </div>
+            
+            <table id="shopsTable">
+                <thead>
+                    <tr>
+                        <th>Subdomain</th>
+                        <th>Shop Name</th>
+                        <th>Status</th>
+                        <th>Expires In</th>
+                        <th>Actions (Admin Override)</th>
+                    </tr>
+                </thead>
+                <tbody id="shopsBody">
+                    <!-- Loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://yfnjzhftofbihvwtcsyq.supabase.co';
+        let supabaseClient = null;
+
+        async function login() {
+            const key = document.getElementById('serviceKey').value.trim();
+            if(!key) return alert("Enter the master key.");
+            
+            try {
+                // Initialize with Service Role Key (Bypasses RLS)
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, key);
+                
+                // Test connection
+                const { data, error } = await supabaseClient.from('printhub_shops').select('*').limit(1);
+                if(error) throw error;
+                
+                document.getElementById('loginBox').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                loadShops();
+            } catch(e) {
+                alert("Authentication Failed. Invalid Master Key.");
+                console.error(e);
+            }
+        }
+
+        async function loadShops() {
+            const tbody = document.getElementById('shopsBody');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#888;">Scanning database...</td></tr>';
+            
+            const { data, error } = await supabaseClient.from('printhub_shops').select('*').order('created_at', { ascending: false });
+            
+            if(error) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color:red;">Error: ${error.message}</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            const now = new Date();
+
+            data.forEach(shop => {
+                let statusBadge = '';
+                let daysLeft = 0;
+                
+                if (!shop.is_active) {
+                    statusBadge = '<span class="status-badge status-dead">SUSPENDED (KILLSWITCH)</span>';
+                    daysLeft = 'N/A';
+                } else if (shop.subscription_expiry) {
+                    const expiry = new Date(shop.subscription_expiry);
+                    const diffTime = expiry - now;
+                    daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (daysLeft >= 0) {
+                        statusBadge = '<span class="status-badge status-active">ACTIVE</span>';
+                    } else if (daysLeft >= -3) {
+                        statusBadge = '<span class="status-badge status-grace">GRACE PERIOD (EXPIRING)</span>';
+                    } else {
+                        statusBadge = '<span class="status-badge status-dead">DEAD (LOCKED)</span>';
+                    }
+                } else {
+                    statusBadge = '<span class="status-badge status-active">PERMANENT</span>';
+                    daysLeft = '∞';
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-family: monospace; font-size: 1.1rem; color: #FF9B51;">${shop.subdomain}.yourdomain.com</td>
+                    <td style="font-weight: bold;">${shop.shop_name}</td>
+                    <td>${statusBadge}</td>
+                    <td>${daysLeft} days</td>
+                    <td>
+                        <button class="action-btn green" onclick="addTime('${shop.id}', 30)">+30D</button>
+                        <button class="action-btn red" style="background:#dc3545;" onclick="addTime('${shop.id}', -30)">-30D</button>
+                        <button class="action-btn" style="background:#007bff;" onclick="editShop('${shop.id}', '${shop.shop_name}')">EDIT</button>
+                        ${shop.is_active 
+                            ? `<button class="action-btn red" onclick="toggleKillswitch('${shop.id}', false)">PULL PLUG</button>` 
+                            : `<button class="action-btn green" onclick="toggleKillswitch('${shop.id}', true)">RESTORE</button>`
+                        }
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function editShop(id, currentName) {
+            const newName = prompt("Enter new Shop Name:", currentName);
+            if(!newName || newName === currentName) return;
+            
+            await supabase.from('printhub_shops').update({ shop_name: newName }).eq('id', id);
+            loadShops();
+        }
+
+        async function addTime(id, days) {
+            if(!confirm(`Add ${days} days to this shop's subscription?`)) return;
+            
+            // Get current expiry or use now
+            const { data } = await supabaseClient.from('printhub_shops').select('subscription_expiry').eq('id', id).single();
+            let current = data.subscription_expiry ? new Date(data.subscription_expiry) : new Date();
+            if(current < new Date()) current = new Date(); // If expired, start from today
+            
+            current.setDate(current.getDate() + days);
+            
+            await supabaseClient.from('printhub_shops').update({ 
+                subscription_expiry: current.toISOString(),
+                is_active: true // Auto restore if adding time
+            }).eq('id', id);
+            
+            loadShops();
+        }
+
+        async function toggleKillswitch(id, activate) {
+            const action = activate ? "restore" : "permanently suspend";
+            if(!confirm(`Are you sure you want to ${action} this shop?`)) return;
+            
+            await supabaseClient.from('printhub_shops').update({ is_active: activate }).eq('id', id);
+            loadShops();
+        }
+    </script>
+</body>
+</html>

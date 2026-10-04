@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width: 500px; margin: 4rem auto; background: #dc3545; color: white; padding: 2rem; border-radius: 8px; text-align: center; border: 4px solid #721c24;">
+    <h1 style="margin: 0 0 1rem 0; font-size: 2rem; text-transform: uppercase;">Hardware Lock Engaged</h1>
+    <p style="font-size: 1.1rem; font-weight: bold;">{{ reason }}</p>
+    <p style="margin-bottom: 2rem;">This computer has been disconnected from the PrintHub network. All pending print jobs have been frozen to protect customer data.</p>
+    
+    <a href="{{ url_for('login') }}" class="btn" style="background: white; color: #dc3545; font-weight: bold; text-decoration: none; padding: 0.75rem 2rem;">Re-Authenticate Device</a>
+    
+    <div style="margin-top: 2rem; font-family: monospace; color: #ffb3b3; font-size: 0.8rem;">
+        HWID: {{ hwid }}
+    </div>
+</div>
+{% endblock %}
