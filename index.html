@@ -1,789 +1,313 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>PrintHub - Cloud Print Service</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-let currentSlicerFileIndex = -1;
-let currentSlicerPdf = null;
-let slicerSelectedPages = new Set();
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PrintHub SaaS</title>
+    
+    <!-- CDNs -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 
-async function openVisualSlicer(fileId) {
-    const fileIndex = filesData.findIndex(file => file.id === fileId);
-    if (fileIndex === -1) return;
-    currentSlicerFileIndex = fileIndex;
-    const f = filesData[fileIndex];
-    if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
-    
-    document.getElementById('slicer-modal').style.display = 'flex';
-    const grid = document.getElementById('slicer-grid');
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
-    
-    // Parse current range or default to all
-    let initialPages = [];
-    if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
-        initialPages = parsePageRange(f.config.pageRange, f.totalPages);
-    } else {
-        for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
-    }
-    slicerSelectedPages = new Set(initialPages);
-    
-    updateSlicerInput();
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    // Load PDF via PDF.js
-    const arrayBuffer = await f.originalFile.arrayBuffer();
-    const pdfjsLib = window['pdfjs-dist/build/pdf'];
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-    
-    try {
-        currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-        grid.innerHTML = ''; // clear loading
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; padding-bottom: 120px; }
         
-        // Render pages
-        for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
-            const thumb = document.createElement('div');
-            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
-            thumb.onclick = () => toggleSlicerPage(i-1, thumb);
-            
-            const canvas = document.createElement('canvas');
-            const pageNumStr = document.createElement('div');
-            pageNumStr.className = 'page-number';
-            pageNumStr.innerText = i;
-            
-            const check = document.createElement('div');
-            check.className = 'check-icon';
-            check.innerHTML = '✓';
-            
-            thumb.appendChild(canvas);
-            thumb.appendChild(pageNumStr);
-            thumb.appendChild(check);
-            grid.appendChild(thumb);
-            
-            // Async render canvas
-            currentSlicerPdf.getPage(i).then(page => {
-                const viewport = page.getViewport({scale: 0.6});
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-                page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
-            });
-        }
-    } catch (e) {
-        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
-        console.error(e);
-    }
-}
-
-function toggleSlicerPage(pageIndex, element) {
-    if (slicerSelectedPages.has(pageIndex)) {
-        slicerSelectedPages.delete(pageIndex);
-        element.classList.remove('selected');
-    } else {
-        slicerSelectedPages.add(pageIndex);
-        element.classList.add('selected');
-    }
-    updateSlicerInput();
-}
-
-function updateSlicerInput() {
-    const input = document.getElementById('slicer-range-input');
-    let sorted = Array.from(slicerSelectedPages).sort((a,b)=>a-b);
-    let ranges = [];
-    let i = 0;
-    while(i < sorted.length) {
-        let start = sorted[i];
-        let end = start;
-        while(i+1 < sorted.length && sorted[i+1] == end + 1) {
-            end = sorted[i+1];
-            i++;
-        }
-        if(start === end) ranges.push(start+1);
-        else ranges.push((start+1) + '-' + (end+1));
-        i++;
-    }
-    input.value = ranges.join(', ');
-}
-
-function syncSlicerGridFromInput() {
-    const inputStr = document.getElementById('slicer-range-input').value;
-    const total = currentSlicerPdf ? currentSlicerPdf.numPages : 100;
-    const parsed = parsePageRange(inputStr, total);
-    slicerSelectedPages = new Set(parsed);
-    
-    const grid = document.getElementById('slicer-grid');
-    for(let i=0; i<grid.children.length; i++) {
-        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
-        else grid.children[i].classList.remove('selected');
-    }
-}
-
-function saveSlicerSelection() {
-    const f = filesData[currentSlicerFileIndex];
-    const newValue = document.getElementById('slicer-range-input').value;
-    document.getElementById('slicer-modal').style.display = 'none';
-    // This triggers renderFileList AND calculateTotal cleanly:
-    updateConfig(f.id, 'pageRange', newValue);
-}
-function closeSlicer() {
-    document.getElementById('slicer-modal').style.display = 'none';
-}
-</script>
-<script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js">
-let currentSlicerFileIndex = -1;
-let currentSlicerPdf = null;
-let slicerSelectedPages = new Set();
-
-async function openVisualSlicer(fileId) {
-    const fileIndex = filesData.findIndex(file => file.id === fileId);
-    if (fileIndex === -1) return;
-    currentSlicerFileIndex = fileIndex;
-    const f = filesData[fileIndex];
-    if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
-    
-    document.getElementById('slicer-modal').style.display = 'flex';
-    const grid = document.getElementById('slicer-grid');
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
-    
-    // Parse current range or default to all
-    let initialPages = [];
-    if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
-        initialPages = parsePageRange(f.config.pageRange, f.totalPages);
-    } else {
-        for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
-    }
-    slicerSelectedPages = new Set(initialPages);
-    
-    updateSlicerInput();
-
-    // Load PDF via PDF.js
-    const arrayBuffer = await f.originalFile.arrayBuffer();
-    const pdfjsLib = window['pdfjs-dist/build/pdf'];
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-    
-    try {
-        currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-        grid.innerHTML = ''; // clear loading
+        /* Smooth animations */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        // Render pages
-        for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
-            const thumb = document.createElement('div');
-            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
-            thumb.onclick = () => toggleSlicerPage(i-1, thumb);
-            
-            const canvas = document.createElement('canvas');
-            const pageNumStr = document.createElement('div');
-            pageNumStr.className = 'page-number';
-            pageNumStr.innerText = i;
-            
-            const check = document.createElement('div');
-            check.className = 'check-icon';
-            check.innerHTML = '✓';
-            
-            thumb.appendChild(canvas);
-            thumb.appendChild(pageNumStr);
-            thumb.appendChild(check);
-            grid.appendChild(thumb);
-            
-            // Async render canvas
-            currentSlicerPdf.getPage(i).then(page => {
-                const viewport = page.getViewport({scale: 0.6});
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-                page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
-            });
-        }
-    } catch (e) {
-        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
-        console.error(e);
-    }
-}
+        /* Dropzone animations */
+        .dropzone-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
 
-function toggleSlicerPage(pageIndex, element) {
-    if (slicerSelectedPages.has(pageIndex)) {
-        slicerSelectedPages.delete(pageIndex);
-        element.classList.remove('selected');
-    } else {
-        slicerSelectedPages.add(pageIndex);
-        element.classList.add('selected');
-    }
-    updateSlicerInput();
-}
-
-function updateSlicerInput() {
-    const input = document.getElementById('slicer-range-input');
-    let sorted = Array.from(slicerSelectedPages).sort((a,b)=>a-b);
-    let ranges = [];
-    let i = 0;
-    while(i < sorted.length) {
-        let start = sorted[i];
-        let end = start;
-        while(i+1 < sorted.length && sorted[i+1] == end + 1) {
-            end = sorted[i+1];
-            i++;
-        }
-        if(start === end) ranges.push(start+1);
-        else ranges.push((start+1) + '-' + (end+1));
-        i++;
-    }
-    input.value = ranges.join(', ');
-}
-
-function syncSlicerGridFromInput() {
-    const inputStr = document.getElementById('slicer-range-input').value;
-    const total = currentSlicerPdf ? currentSlicerPdf.numPages : 100;
-    const parsed = parsePageRange(inputStr, total);
-    slicerSelectedPages = new Set(parsed);
-    
-    const grid = document.getElementById('slicer-grid');
-    for(let i=0; i<grid.children.length; i++) {
-        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
-        else grid.children[i].classList.remove('selected');
-    }
-}
-
-function saveSlicerSelection() {
-    const f = filesData[currentSlicerFileIndex];
-    const newValue = document.getElementById('slicer-range-input').value;
-    document.getElementById('slicer-modal').style.display = 'none';
-    // This triggers renderFileList AND calculateTotal cleanly:
-    updateConfig(f.id, 'pageRange', newValue);
-}
-function closeSlicer() {
-    document.getElementById('slicer-modal').style.display = 'none';
-}
-</script>
-<script src="https://checkout.razorpay.com/v1/checkout.js">
-let currentSlicerFileIndex = -1;
-let currentSlicerPdf = null;
-let slicerSelectedPages = new Set();
-
-async function openVisualSlicer(fileId) {
-    const fileIndex = filesData.findIndex(file => file.id === fileId);
-    if (fileIndex === -1) return;
-    currentSlicerFileIndex = fileIndex;
-    const f = filesData[fileIndex];
-    if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
-    
-    document.getElementById('slicer-modal').style.display = 'flex';
-    const grid = document.getElementById('slicer-grid');
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
-    
-    // Parse current range or default to all
-    let initialPages = [];
-    if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
-        initialPages = parsePageRange(f.config.pageRange, f.totalPages);
-    } else {
-        for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
-    }
-    slicerSelectedPages = new Set(initialPages);
-    
-    updateSlicerInput();
-
-    // Load PDF via PDF.js
-    const arrayBuffer = await f.originalFile.arrayBuffer();
-    const pdfjsLib = window['pdfjs-dist/build/pdf'];
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-    
-    try {
-        currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-        grid.innerHTML = ''; // clear loading
+        /* Hide scrollbar for grid */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        // Render pages
-        for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
-            const thumb = document.createElement('div');
-            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
-            thumb.onclick = () => toggleSlicerPage(i-1, thumb);
-            
-            const canvas = document.createElement('canvas');
-            const pageNumStr = document.createElement('div');
-            pageNumStr.className = 'page-number';
-            pageNumStr.innerText = i;
-            
-            const check = document.createElement('div');
-            check.className = 'check-icon';
-            check.innerHTML = '✓';
-            
-            thumb.appendChild(canvas);
-            thumb.appendChild(pageNumStr);
-            thumb.appendChild(check);
-            grid.appendChild(thumb);
-            
-            // Async render canvas
-            currentSlicerPdf.getPage(i).then(page => {
-                const viewport = page.getViewport({scale: 0.6});
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-                page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
-            });
-        }
-    } catch (e) {
-        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
-        console.error(e);
-    }
-}
-
-function toggleSlicerPage(pageIndex, element) {
-    if (slicerSelectedPages.has(pageIndex)) {
-        slicerSelectedPages.delete(pageIndex);
-        element.classList.remove('selected');
-    } else {
-        slicerSelectedPages.add(pageIndex);
-        element.classList.add('selected');
-    }
-    updateSlicerInput();
-}
-
-function updateSlicerInput() {
-    const input = document.getElementById('slicer-range-input');
-    let sorted = Array.from(slicerSelectedPages).sort((a,b)=>a-b);
-    let ranges = [];
-    let i = 0;
-    while(i < sorted.length) {
-        let start = sorted[i];
-        let end = start;
-        while(i+1 < sorted.length && sorted[i+1] == end + 1) {
-            end = sorted[i+1];
-            i++;
-        }
-        if(start === end) ranges.push(start+1);
-        else ranges.push((start+1) + '-' + (end+1));
-        i++;
-    }
-    input.value = ranges.join(', ');
-}
-
-function syncSlicerGridFromInput() {
-    const inputStr = document.getElementById('slicer-range-input').value;
-    const total = currentSlicerPdf ? currentSlicerPdf.numPages : 100;
-    const parsed = parsePageRange(inputStr, total);
-    slicerSelectedPages = new Set(parsed);
-    
-    const grid = document.getElementById('slicer-grid');
-    for(let i=0; i<grid.children.length; i++) {
-        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
-        else grid.children[i].classList.remove('selected');
-    }
-}
-
-function saveSlicerSelection() {
-    const f = filesData[currentSlicerFileIndex];
-    const newValue = document.getElementById('slicer-range-input').value;
-    document.getElementById('slicer-modal').style.display = 'none';
-    // This triggers renderFileList AND calculateTotal cleanly:
-    updateConfig(f.id, 'pageRange', newValue);
-}
-function closeSlicer() {
-    document.getElementById('slicer-modal').style.display = 'none';
-}
-</script>
-<style>
-:root {
-    --bg: #f8fafc;
-    --surface: #ffffff;
-    --border: #e2e8f0;
-    --border-hover: #cbd5e1;
-    --primary: #2563eb;
-    --primary-hover: #1d4ed8;
-    --text-main: #0f172a;
-    --text-muted: #64748b;
-    --danger: #ef4444;
-    --success: #22c55e;
-    --radius: 16px;
-}
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-body { padding-bottom: 140px;  background: var(--bg); color: var(--text-main); line-height: 1.5; -webkit-font-smoothing: antialiased; padding-bottom: 100px; }
-.container { max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
-
-/* Header */
-header { text-align: center; margin-bottom: 2.5rem; }
-h1 { font-size: 2.5rem; font-weight: 700; color: var(--primary); letter-spacing: -0.5px; margin-bottom: 0.5rem; }
-.subtitle { color: var(--text-muted); font-size: 1.1rem; }
-
-/* Upload Zone */
-.upload-zone { background: var(--surface); border: 2px dashed var(--primary); border-radius: var(--radius); padding: 3rem 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s ease; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-.upload-zone:hover { background: #eff6ff; }
-.upload-icon { font-size: 3rem; margin-bottom: 1rem; }
-.upload-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
-.upload-sub { color: var(--text-muted); font-size: 0.95rem; }
-
-/* File Cards */
-.file-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.file-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
-.file-name { font-weight: 600; font-size: 1.1rem; word-break: break-all; padding-right: 1rem; }
-.file-badge { font-size: 0.8rem; background: #e2e8f0; color: var(--text-main); padding: 0.25rem 0.75rem; border-radius: 99px; font-weight: 500; white-space: nowrap; }
-.btn-remove { background: none; border: none; color: var(--danger); font-size: 0.9rem; font-weight: 500; cursor: pointer; padding: 0.5rem; border-radius: 8px; }
-.btn-remove:hover { background: #fef2f2; }
-
-/* Controls */
-.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
-.input-group { display: flex; flex-direction: column; gap: 0.4rem; }
-.input-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-input[type="text"], input[type="number"], input[type="tel"], input[type="email"], select, textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; outline: none; transition: border-color 0.2s; background: var(--surface); }
-input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
-textarea { resize: vertical; min-height: 80px; }
-
-/* Customer Form */
-.section-title { font-size: 1.5rem; font-weight: 700; margin: 2.5rem 0 1.5rem 0; }
-.form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2rem; }
-
-/* Payment Options */
-.payment-options { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.pay-option { border: 2px solid var(--border); border-radius: 12px; padding: 1rem; cursor: pointer; text-align: center; font-weight: 600; transition: all 0.2s; background: var(--surface); }
-.pay-option:hover { border-color: var(--border-hover); }
-.pay-option.selected { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
-.pay-option input { display: none; }
-
-/* Sticky Footer */
-.checkout-footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 50; }
-.checkout-footer .container { max-width: 800px; margin: 0 auto; width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0; }
-.total-price { display: flex; flex-direction: column; }
-.total-price span { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-.total-price strong { font-size: 1.75rem; font-weight: 700; color: var(--primary); line-height: 1; }
-.btn-primary { background: var(--primary); color: white; border: none; padding: 1rem 2rem; border-radius: 12px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2); }
-.btn-primary:hover { background: var(--primary-hover); }
-
-/* Modals & Overlays */
-.overlay { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
-.modal { background: var(--surface); width: 100%; max-width: 450px; border-radius: 24px; padding: 2.5rem 2rem; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
-.modal h2 { font-size: 1.75rem; margin-bottom: 0.5rem; color: var(--success); }
-.modal p { color: var(--text-muted); margin-bottom: 1.5rem; }
-.otp-display { font-size: 4rem; font-weight: 800; color: var(--text-main); letter-spacing: 4px; margin: 1rem 0; background: var(--bg); padding: 1rem; border-radius: 16px; border: 2px dashed var(--border); }
-.modal .warning { color: var(--danger); font-weight: 600; font-size: 0.95rem; background: #fef2f2; padding: 1rem; border-radius: 12px; margin-bottom: 2rem; }
-.loader { border: 4px solid #e2e8f0; border-top: 4px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 1.5rem auto; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-/* Error state */
-.error-msg { color: var(--danger); font-size: 0.95rem; margin-top: 1rem; padding: 1rem; background: #fef2f2; border-radius: 8px; display: none; text-align: left;}
-
-#slicer-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.7); z-index: 2000; flex-direction: column; color: white; font-family: sans-serif; }
-.slicer-header { padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; color: #0f172a; border-bottom: 1px solid #e2e8f0; }
-.slicer-body { padding-bottom: 140px;  flex: 1; overflow-y: auto; padding: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 1rem; align-content: start; }
-.page-thumbnail { position: relative; cursor: pointer; border: 4px solid transparent; border-radius: 6px; overflow: hidden; background: #fff; transition: transform 0.1s; }
-.page-thumbnail:hover { transform: scale(1.02); }
-.page-thumbnail.selected { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
-.page-thumbnail canvas { width: 100%; height: auto; display: block; }
-.page-thumbnail .page-number { position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.8); color: white; padding: 4px 10px; font-weight: bold; font-size: 0.9rem; border-top-left-radius: 4px; }
-.page-thumbnail .check-icon { position: absolute; top: 8px; right: 8px; background: #3b82f6; color: white; width: 28px; height: 28px; border-radius: 50%; display: none; align-items: center; justify-content: center; font-size: 1rem; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-.page-thumbnail.selected .check-icon { display: flex; }
-.slicer-footer { padding: 1.5rem 2rem; background: #f8fafc; color: #0f172a; display: flex; gap: 1rem; align-items: center; border-top: 1px solid #e2e8f0; }
-.slicer-footer input { flex: 1; background: #ffffff; color: #0f172a; color: white; border: 1px solid #444; padding: 0.8rem; border-radius: 6px; font-size: 1rem; }
-
-/* Responsive Mobile Adjustments */
-@media (max-width: 768px) {
-    .container { padding: 1rem; }
-    .config-grid { grid-template-columns: 1fr !important; gap: 1rem; }
-    .payment-options { flex-direction: column; }
-    .pay-option { width: 100%; box-sizing: border-box; }
-    .slicer-header { flex-direction: row; padding: 1rem; }
-    .slicer-header h2 { font-size: 1.2rem; margin: 0; }
-    .slicer-footer { flex-direction: column; gap: 0.5rem; padding: 1rem; }
-    .slicer-footer input { padding: 0.5rem; }
-    .slicer-footer input { width: 100%; box-sizing: border-box; }
-    .slicer-footer button { width: 100%; }
-    .slicer-body { padding-bottom: 140px;  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); padding: 1rem; }
-    .checkout-footer .container { flex-direction: column; gap: 1rem; align-items: stretch !important; text-align: center; }
-    .file-header { flex-direction: column; align-items: flex-start !important; gap: 1rem; }
-    .btn-remove { width: 100%; }
-}
-</style>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js">
-let currentSlicerFileIndex = -1;
-let currentSlicerPdf = null;
-let slicerSelectedPages = new Set();
-
-async function openVisualSlicer(fileId) {
-    const fileIndex = filesData.findIndex(file => file.id === fileId);
-    if (fileIndex === -1) return;
-    currentSlicerFileIndex = fileIndex;
-    const f = filesData[fileIndex];
-    if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
-    
-    document.getElementById('slicer-modal').style.display = 'flex';
-    const grid = document.getElementById('slicer-grid');
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
-    
-    // Parse current range or default to all
-    let initialPages = [];
-    if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
-        initialPages = parsePageRange(f.config.pageRange, f.totalPages);
-    } else {
-        for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
-    }
-    slicerSelectedPages = new Set(initialPages);
-    
-    updateSlicerInput();
-
-    // Load PDF via PDF.js
-    const arrayBuffer = await f.originalFile.arrayBuffer();
-    const pdfjsLib = window['pdfjs-dist/build/pdf'];
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-    
-    try {
-        currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-        grid.innerHTML = ''; // clear loading
-        
-        // Render pages
-        for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
-            const thumb = document.createElement('div');
-            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
-            thumb.onclick = () => toggleSlicerPage(i-1, thumb);
-            
-            const canvas = document.createElement('canvas');
-            const pageNumStr = document.createElement('div');
-            pageNumStr.className = 'page-number';
-            pageNumStr.innerText = i;
-            
-            const check = document.createElement('div');
-            check.className = 'check-icon';
-            check.innerHTML = '✓';
-            
-            thumb.appendChild(canvas);
-            thumb.appendChild(pageNumStr);
-            thumb.appendChild(check);
-            grid.appendChild(thumb);
-            
-            // Async render canvas
-            currentSlicerPdf.getPage(i).then(page => {
-                const viewport = page.getViewport({scale: 0.6});
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-                page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
-            });
-        }
-    } catch (e) {
-        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
-        console.error(e);
-    }
-}
-
-function toggleSlicerPage(pageIndex, element) {
-    if (slicerSelectedPages.has(pageIndex)) {
-        slicerSelectedPages.delete(pageIndex);
-        element.classList.remove('selected');
-    } else {
-        slicerSelectedPages.add(pageIndex);
-        element.classList.add('selected');
-    }
-    updateSlicerInput();
-}
-
-function updateSlicerInput() {
-    const input = document.getElementById('slicer-range-input');
-    let sorted = Array.from(slicerSelectedPages).sort((a,b)=>a-b);
-    let ranges = [];
-    let i = 0;
-    while(i < sorted.length) {
-        let start = sorted[i];
-        let end = start;
-        while(i+1 < sorted.length && sorted[i+1] == end + 1) {
-            end = sorted[i+1];
-            i++;
-        }
-        if(start === end) ranges.push(start+1);
-        else ranges.push((start+1) + '-' + (end+1));
-        i++;
-    }
-    input.value = ranges.join(', ');
-}
-
-function syncSlicerGridFromInput() {
-    const inputStr = document.getElementById('slicer-range-input').value;
-    const total = currentSlicerPdf ? currentSlicerPdf.numPages : 100;
-    const parsed = parsePageRange(inputStr, total);
-    slicerSelectedPages = new Set(parsed);
-    
-    const grid = document.getElementById('slicer-grid');
-    for(let i=0; i<grid.children.length; i++) {
-        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
-        else grid.children[i].classList.remove('selected');
-    }
-}
-
-function saveSlicerSelection() {
-    const f = filesData[currentSlicerFileIndex];
-    const newValue = document.getElementById('slicer-range-input').value;
-    document.getElementById('slicer-modal').style.display = 'none';
-    // This triggers renderFileList AND calculateTotal cleanly:
-    updateConfig(f.id, 'pageRange', newValue);
-}
-function closeSlicer() {
-    document.getElementById('slicer-modal').style.display = 'none';
-}
-</script>
+        /* Checkbox/Radio styles */
+        .radio-custom:checked + div { border-color: #3b82f6; background-color: #eff6ff; }
+        .radio-custom:checked + div .radio-circle { border-color: #3b82f6; background-color: #3b82f6; }
+    </style>
 </head>
-<body>
+<body class="antialiased min-h-screen selection:bg-blue-200">
 
-<div class="container">
-    <header>
-        <h1>PrintHub</h1>
-        <p class="subtitle">Upload files, configure settings, and pickup at the shop.</p>
-    </header>
-    
-    <div class="upload-zone" id="dropzone" onclick="document.getElementById('file-input').click()">
-        <div class="upload-icon">📄</div>
-        <div class="upload-title">Tap here to select files</div>
-        <div class="upload-sub">PDF, PNG, JPG supported</div>
-        <input type="file" id="file-input" multiple accept=".pdf,.png,.jpg,.jpeg" style="display:none">
-    </div>
+    <!-- Top Loading Bar (Optional, but looks nice) -->
+    <div id="top-loader" class="fixed top-0 left-0 w-full h-1 bg-blue-600 hidden z-50 transition-all duration-300"></div>
 
-    <div id="file-list"></div>
-
-    <h2 class="section-title">Your Details</h2>
-    <div class="form-card">
-        <div class="input-group">
-            <label>Full Name</label>
-            <input type="text" id="c_name" placeholder="John Doe">
-        </div>
-        <div class="input-group">
-            <label>Phone Number (Required for pickup)</label>
-            <input type="tel" id="c_phone" placeholder="9876543210">
-        </div>
-        <div class="input-group">
-            <label>Special Instructions (Optional)</label>
-            <textarea id="c_notes" placeholder="Staple the pages, spiral binding, etc..."></textarea>
-        </div>
-    </div>
-
-    <h2 class="section-title">Payment Method</h2>
-    <div class="form-card" style="margin-bottom: 4rem;">
-        <div class="payment-options">
-            <label class="pay-option selected" id="opt_shop">
-                <input type="radio" name="payment_method" value="shop" checked onchange="updatePaymentUI()">
-                Pay at Shop
-            </label>
-            <label class="pay-option" id="opt_online">
-                <input type="radio" name="payment_method" value="online" onchange="updatePaymentUI()">
-                Pay Online (Razorpay)
-            </label>
-        </div>
-    </div>
-</div>
-
-<div class="checkout-footer">
-    <div class="container">
-        <div class="total-price">
-            <span>Total Amount</span>
-            <strong id="total-price">₹0.00</strong>
-        </div>
-        <button class="btn-primary" onclick="handleCheckout()">Confirm Order</button>
-    </div>
-</div>
-
-<!-- Loading Overlay -->
-<div class="overlay" id="loading-overlay" style="display: flex;">
-    <div class="modal">
-        <div class="loader"></div>
-        <h2 id="overlay-title" style="color: var(--primary);">Connecting...</h2>
-        <p id="overlay-desc">Please wait while we initialize the service.</p>
-        <div class="error-msg" id="overlay-error"></div>
-        <button class="btn-primary" id="btn-close-error" style="display: none; width: 100%; margin-top: 1rem;" onclick="closeError()">Close</button>
-    </div>
-</div>
-
-<!-- OTP Success Modal -->
-<div class="overlay" id="otp-modal">
-    <div class="modal">
-        <h2>Order Successful!</h2>
-        <p>Your files have been securely sent to the shop printer.</p>
+    <main class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
         
-        <div class="otp-display" id="otp-display-value">1234</div>
-        
-        <div class="warning">
-            ⚠️ Take a screenshot now!<br>
-            This PIN will disappear forever when you close this window. You need it to unlock your prints.
+        <!-- HEADER -->
+        <header class="flex flex-col items-center justify-center text-center space-y-4 my-8 fade-in">
+            <div id="shop-header-container" class="flex flex-col items-center justify-center gap-3">
+                <div class="h-20 w-20 bg-slate-200 rounded-full flex items-center justify-center animate-pulse" id="header-skeleton-logo"></div>
+                <h1 class="text-3xl font-bold tracking-tight text-slate-900" id="shop-title">Loading...</h1>
+            </div>
+            <p class="text-slate-500 font-medium flex items-center gap-2" id="shop-location">
+                <i data-lucide="map-pin" class="w-4 h-4"></i> <span>Initializing Secure Terminal...</span>
+            </p>
+        </header>
+
+        <!-- OFFER BANNER -->
+        <div id="offer-banner" class="hidden fade-in w-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 shadow-lg shadow-blue-500/30 text-white mb-8 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-white/20 p-2 rounded-lg backdrop-blur-sm"><i data-lucide="sparkles" class="w-5 h-5 text-yellow-300"></i></div>
+                <div class="font-medium text-sm sm:text-base" id="offer-text">Special Offer: 50% Off!</div>
+            </div>
+        </div>
+
+        <!-- UPLOAD ZONE -->
+        <div id="dropzone" class="fade-in bg-white border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 rounded-3xl p-10 text-center cursor-pointer group shadow-sm flex flex-col items-center justify-center gap-4" onclick="document.getElementById('file-input').click()">
+            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 dropzone-pulse">
+                <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+            </div>
+            <div>
+                <h3 class="text-xl font-bold text-slate-800">Tap to upload documents</h3>
+                <p class="text-slate-500 mt-2 text-sm">PDF, PNG, and JPG up to 50MB</p>
+            </div>
+            <input type="file" id="file-input" multiple accept=".pdf,.png,.jpg,.jpeg" class="hidden">
+        </div>
+
+        <!-- FILE LIST -->
+        <div id="file-list" class="mt-8 space-y-4"></div>
+
+        <!-- USER DETAILS -->
+        <div class="fade-in bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 mt-8">
+            <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <i data-lucide="user" class="w-5 h-5 text-blue-600"></i> Your Details
+            </h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
+                    <input type="text" id="c_name" placeholder="John Doe" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Phone Number</label>
+                    <input type="tel" id="c_phone" placeholder="9876543210" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Special Instructions <span class="text-slate-400 font-normal">(Optional)</span></label>
+                    <textarea id="c_notes" rows="2" placeholder="Staple the pages together..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAYMENT METHOD -->
+        <div class="fade-in bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 mt-8 mb-12">
+            <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <i data-lucide="credit-card" class="w-5 h-5 text-blue-600"></i> Payment Method
+            </h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label class="relative cursor-pointer">
+                    <input type="radio" name="payment_method" value="shop" checked class="radio-custom sr-only" onchange="updatePaymentUI()">
+                    <div class="flex items-center gap-4 p-4 rounded-2xl border-2 border-slate-200 hover:bg-slate-50 transition-all">
+                        <div class="radio-circle w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center transition-colors"></div>
+                        <div class="flex flex-col">
+                            <span class="font-bold text-slate-800">Pay at Shop</span>
+                            <span class="text-xs text-slate-500">Pay directly when you pick up</span>
+                        </div>
+                        <i data-lucide="store" class="w-6 h-6 text-slate-400 ml-auto"></i>
+                    </div>
+                </label>
+                <label class="relative cursor-pointer">
+                    <input type="radio" name="payment_method" value="online" class="radio-custom sr-only" onchange="updatePaymentUI()">
+                    <div class="flex items-center gap-4 p-4 rounded-2xl border-2 border-slate-200 hover:bg-slate-50 transition-all">
+                        <div class="radio-circle w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center transition-colors"></div>
+                        <div class="flex flex-col">
+                            <span class="font-bold text-slate-800">Pay Online</span>
+                            <span class="text-xs text-slate-500">Fast, secure UPI & Cards</span>
+                        </div>
+                        <i data-lucide="smartphone" class="w-6 h-6 text-slate-400 ml-auto"></i>
+                    </div>
+                </label>
+            </div>
+        </div>
+    </main>
+
+    <!-- FLOATING CHECKOUT FOOTER (Glassmorphism) -->
+    <div class="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-xl border-t border-slate-200 p-4 sm:p-6 z-40 pb-safe">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex flex-col text-center sm:text-left">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Amount</span>
+                <strong id="total-price" class="text-3xl font-extrabold text-blue-600 leading-none mt-1">₹0.00</strong>
+            </div>
+            <button onclick="handleCheckout()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-10 rounded-2xl shadow-xl shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2">
+                <i data-lucide="zap" class="w-5 h-5"></i> Place Order
+            </button>
+        </div>
+    </div>
+
+    <!-- FULL SCREEN LOADER / OVERLAY -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl scale-100 transition-transform">
+            <div class="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-6"></div>
+            <h2 id="overlay-title" class="text-xl font-bold text-slate-800 mb-2">Connecting...</h2>
+            <p id="overlay-desc" class="text-slate-500 text-sm">Initializing secure terminal.</p>
+            <div id="overlay-error" class="hidden mt-4 bg-red-50 text-red-600 p-3 rounded-lg text-sm text-left"></div>
+            <button id="btn-close-error" class="hidden mt-6 w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800" onclick="closeError()">Dismiss</button>
+        </div>
+    </div>
+
+    <!-- OTP SUCCESS MODAL -->
+    <div id="otp-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-green-500"></div>
+            <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i data-lucide="check-circle-2" class="w-8 h-8"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">Order Successful!</h2>
+            <p class="text-slate-500 text-sm mb-6">Your files have been securely transmitted to the shop printer.</p>
+            
+            <div class="bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 mb-6">
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Your Pickup PIN</div>
+                <div id="otp-display-value" class="text-5xl font-extrabold text-slate-900 tracking-widest">1234</div>
+            </div>
+            
+            <div class="bg-red-50 text-red-700 p-4 rounded-xl text-sm font-semibold mb-6 flex items-start gap-3 text-left">
+                <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0 mt-0.5"></i>
+                <p>Take a screenshot now! This PIN will disappear forever when you close this window.</p>
+            </div>
+            
+            <button onclick="finishOrder()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-colors">I have saved the PIN</button>
+        </div>
+    </div>
+
+    <!-- VISUAL SMART SLICER MODAL -->
+    <div id="slicer-modal" class="hidden fixed inset-0 bg-white/95 backdrop-blur-xl z-[200] flex-col">
+        <div class="flex items-center justify-between p-4 sm:p-6 border-b border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-100 text-blue-600 p-2 rounded-lg"><i data-lucide="scissors" class="w-5 h-5"></i></div>
+                <div>
+                    <h2 class="text-lg sm:text-xl font-bold text-slate-900">Visual Smart Slicer</h2>
+                    <p class="text-xs text-slate-500 hidden sm:block">Tap pages to select or deselect.</p>
+                </div>
+            </div>
+            <button onclick="closeSlicer()" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
         </div>
         
-        <button class="btn-primary" style="width: 100%;" onclick="finishOrder()">I have saved the PIN</button>
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
+            <div id="slicer-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6 auto-rows-max">
+                <!-- Javascript injects thumbnails here -->
+            </div>
+        </div>
+        
+        <div class="border-t border-slate-200 bg-white p-4 sm:p-6 flex flex-col sm:flex-row items-center gap-4">
+            <div class="flex-1 w-full relative">
+                <label class="absolute -top-2 left-3 bg-white px-1 text-xs font-semibold text-blue-600">Selected Pages</label>
+                <input type="text" id="slicer-range-input" onkeyup="syncSlicerGridFromInput()" placeholder="e.g. 1-3, 5, 7" class="w-full border-2 border-slate-200 rounded-xl p-4 font-mono text-slate-800 focus:border-blue-500 focus:ring-0 outline-none transition-colors">
+            </div>
+            <button onclick="saveSlicerSelection()" class="w-full sm:w-auto bg-blue-600 text-white font-bold py-4 px-8 rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                <i data-lucide="check" class="w-5 h-5"></i> Confirm Selection
+            </button>
+        </div>
     </div>
-</div>
-
 <!-- ========================================== -->
 <!-- JS LOGIC -->
 <!-- ========================================== -->
 <script>
+// Initialize Icons
+lucide.createIcons();
+
 const SUPABASE_URL = 'https://yfnjzhftofbihvwtcsyq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmbmp6aGZ0b2ZiaWh2d3Rjc3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNzI4NzksImV4cCI6MjEwNTg0ODg3OX0.hw5XMsjmgHkUvHYs03vdRSZdhHqznjdkQHp_vwKO-Lg';
 let supabaseClient;
 try {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    document.getElementById('loading-overlay').style.display = 'none';
 } catch (e) {
-    showError("Failed to initialize database connection.");
+    showError("Connection Failed", "Failed to initialize database connection. Please check your network.");
 }
 
 let filesData = [];
 let RATES = { bw: 2.0, color: 10.0 }; 
 let SHOP_ONLINE = true;
-
 let currentShopId = null;
 let currentShopName = "PrintHub";
+
+document.addEventListener("DOMContentLoaded", () => {
+    initializeTenant();
+    setupDragAndDrop();
+});
 
 async function initializeTenant() {
     try {
         let hostname = window.location.hostname;
-        let subdomain = 'demo'; // Default for local testing
+        let subdomain = 'demo';
         
         if (hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname.includes('.')) {
-            // Extract subdomain (e.g. 'akshay' from 'akshay.printhub.com')
-            // For vercel apps like printhub-hybrid.vercel.app, we might need a specific check, but for MVP:
             subdomain = hostname.split('.')[0]; 
-            // Fallback for vercel default domains during testing
             if (hostname.includes('vercel.app')) subdomain = 'demo';
         }
 
-        // 1. Fetch Shop Details
         const { data: shopData, error: shopErr } = await supabaseClient.from('printhub_shops').select('id, shop_name, is_active, subscription_expiry, location, logo_url').eq('subdomain', subdomain).single();
         
         if (!shopData) {
-            document.body.innerHTML = `<div style="padding: 3rem; text-align: center; font-family: sans-serif;"><h1>404 - Shop Not Found</h1><p>The print shop at subdomain '${subdomain}' does not exist on our platform.</p></div>`;
+            document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center bg-slate-50"><div class="text-center p-8 bg-white rounded-3xl shadow-xl max-w-md"><i data-lucide="ghost" class="w-16 h-16 text-slate-300 mx-auto mb-4"></i><h1 class="text-2xl font-bold text-slate-800 mb-2">404 - Shop Not Found</h1><p class="text-slate-500">The print shop at '${subdomain}' does not exist on our platform.</p></div></div>`;
+            lucide.createIcons();
             return;
         }
         
         if (shopData.is_active === false) {
-            document.body.innerHTML = `<div style="padding: 3rem; text-align: center; font-family: sans-serif;"><h1 style="color: #ef4444;">Shop Suspended</h1><p>This shop has been manually suspended.</p></div>`;
+            document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center bg-slate-50"><div class="text-center p-8 bg-white rounded-3xl shadow-xl max-w-md"><i data-lucide="shield-alert" class="w-16 h-16 text-red-500 mx-auto mb-4"></i><h1 class="text-2xl font-bold text-slate-800 mb-2">Shop Suspended</h1><p class="text-slate-500">This shop has been manually suspended.</p></div></div>`;
+            lucide.createIcons();
             return;
         }
         
-        // Automated 3-Day Grace Period Killswitch
         if (shopData.subscription_expiry) {
             const expiryDate = new Date(shopData.subscription_expiry);
             const currentDate = new Date();
             const gracePeriodEnd = new Date(expiryDate.getTime() + (3 * 24 * 60 * 60 * 1000));
             
             if (currentDate > gracePeriodEnd) {
-                document.body.innerHTML = `<div style="padding: 3rem; text-align: center; font-family: sans-serif;"><h1 style="color: #ef4444;">Service Unavailable</h1><p>This shop's SaaS subscription expired 3 days ago. The system has automatically locked the terminal.</p></div>`;
+                document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center bg-slate-50"><div class="text-center p-8 bg-white rounded-3xl shadow-xl max-w-md"><i data-lucide="lock" class="w-16 h-16 text-red-500 mx-auto mb-4"></i><h1 class="text-2xl font-bold text-slate-800 mb-2">Service Unavailable</h1><p class="text-slate-500">This shop's SaaS subscription expired 3 days ago. The system has automatically locked the terminal.</p></div></div>`;
+                lucide.createIcons();
                 return;
-            } else if (currentDate > expiryDate) {
-                // Shop is in grace period. We can silently log it or show a tiny warning for the owner.
-                console.warn(`[SYSTEM] Shop is in 72-hour grace period. Expires entirely on ${gracePeriodEnd}`);
             }
         }
         
         currentShopId = shopData.id;
         currentShopName = shopData.shop_name;
         
-        // Render Branding
-        let headerHtml = currentShopName;
-        if (shopData.logo_url) {
-            headerHtml = `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
-                            <img src="${shopData.logo_url}" style="height: 64px; width: 64px; object-fit: cover; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                            <span>${currentShopName}</span>
-                          </div>`;
-        }
-        document.querySelector('header h1').innerHTML = headerHtml;
+        // Remove skeleton loader
+        const skeleton = document.getElementById('header-skeleton-logo');
+        if(skeleton) skeleton.remove();
+        
+        // Inject Branding
+        const titleEl = document.getElementById('shop-title');
+        titleEl.textContent = currentShopName;
         document.title = currentShopName + " - PrintHub SaaS";
         
-        // Render Location
-        if (shopData.location) {
-            const locEl = document.createElement('div');
-            locEl.innerHTML = `📍 ${shopData.location}`;
-            locEl.style.cssText = "color: #64748b; font-size: 0.95rem; margin-top: 0.5rem; font-weight: 500;";
-            document.querySelector('.subtitle').insertAdjacentElement('afterend', locEl);
+        if (shopData.logo_url) {
+            const img = document.createElement('img');
+            img.src = shopData.logo_url;
+            img.className = "w-20 h-20 object-cover rounded-full shadow-lg border-4 border-white fade-in";
+            document.getElementById('shop-header-container').prepend(img);
+        } else {
+            const iconWrap = document.createElement('div');
+            iconWrap.className = "w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shadow-lg border-4 border-white fade-in";
+            iconWrap.innerHTML = '<i data-lucide="printer" class="w-10 h-10"></i>';
+            document.getElementById('shop-header-container').prepend(iconWrap);
+            lucide.createIcons();
         }
 
-        // 2. Fetch Shop Settings
+        const locEl = document.getElementById('shop-location');
+        if (shopData.location) {
+            locEl.innerHTML = `<i data-lucide="map-pin" class="w-4 h-4"></i> <span>${shopData.location}</span>`;
+        } else {
+            locEl.innerHTML = `<i data-lucide="printer" class="w-4 h-4"></i> <span>Fast, secure local printing</span>`;
+        }
+        lucide.createIcons();
+
+        // Fetch Settings
         const { data: settingsData } = await supabaseClient.from('printhub_settings').select('price_bw, price_color, is_accepting_orders, offer_banner').eq('shop_id', currentShopId).single();
         
         if (settingsData) {
@@ -791,59 +315,110 @@ async function initializeTenant() {
             RATES.color = parseFloat(settingsData.price_color) || 10.0;
             SHOP_ONLINE = settingsData.is_accepting_orders;
             
-            // Render Offer Banner
             if (settingsData.offer_banner) {
-                const banner = document.createElement('div');
-                banner.innerHTML = `🎉 <strong>Special Offer:</strong> ${settingsData.offer_banner}`;
-                banner.style.cssText = "background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 12px; text-align: center; border-radius: 8px; margin-bottom: 2rem; font-size: 0.95rem; box-shadow: 0 4px 6px -1px rgba(37,99,235,0.2);";
-                document.querySelector('.upload-zone').insertAdjacentElement('beforebegin', banner);
-            }
-            
-            if (!SHOP_ONLINE) {
-                document.getElementById('dropzone').style.display = 'none';
-                document.getElementById('dropzone').insertAdjacentHTML('afterend', '<div style="background:#fef2f2; color:#ef4444; padding:2rem; border-radius:16px; text-align:center; font-weight:bold; font-size:1.2rem; border:2px dashed #ef4444;">Shop is currently offline. We are not accepting orders right now.</div>');
+                const banner = document.getElementById('offer-banner');
+                document.getElementById('offer-text').textContent = settingsData.offer_banner;
+                banner.classList.remove('hidden');
             }
         }
+
+        document.getElementById('loading-overlay').style.opacity = '0';
+        setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 300);
+
     } catch (e) {
-        console.error("Could not initialize tenant", e);
+        showError("Initialization Error", e.message);
     }
 }
-initializeTenant();
 
-function updatePaymentUI() {
-    const isOnline = document.querySelector('input[name="payment_method"]:checked').value === 'online';
-    document.getElementById('opt_shop').className = isOnline ? 'pay-option' : 'pay-option selected';
-    document.getElementById('opt_online').className = isOnline ? 'pay-option selected' : 'pay-option';
+// ---------------------------------------------------------
+// UI HELPERS & DRAG-AND-DROP
+// ---------------------------------------------------------
+function showError(title, msg) {
+    const overlay = document.getElementById('loading-overlay');
+    overlay.classList.remove('hidden');
+    overlay.style.opacity = '1';
+    
+    document.querySelector('#loading-overlay .animate-spin').style.display = 'none';
+    document.getElementById('overlay-title').textContent = title || 'Error';
+    document.getElementById('overlay-title').classList.replace('text-slate-800', 'text-red-600');
+    
+    if (msg) {
+        const errEl = document.getElementById('overlay-error');
+        errEl.textContent = msg;
+        errEl.classList.remove('hidden');
+    }
+    document.getElementById('btn-close-error').classList.remove('hidden');
 }
 
-const dropzone = document.getElementById('dropzone');
-dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = 'var(--primary)'; dropzone.style.background = '#eff6ff'; });
-dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = 'var(--primary)'; dropzone.style.background = 'var(--surface)'; });
-dropzone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropzone.style.background = 'var(--surface)';
-    handleFiles(e.dataTransfer.files);
-});
-document.getElementById('file-input').addEventListener('change', (e) => handleFiles(e.target.files));
+function closeError() {
+    const overlay = document.getElementById('loading-overlay');
+    overlay.style.opacity = '0';
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+        document.querySelector('#loading-overlay .animate-spin').style.display = 'block';
+        document.getElementById('overlay-error').classList.add('hidden');
+        document.getElementById('btn-close-error').classList.add('hidden');
+        document.getElementById('overlay-title').classList.replace('text-red-600', 'text-slate-800');
+    }, 300);
+}
 
-async function handleFiles(files) {
-    for (let f of files) {
+function setupDragAndDrop() {
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('file-input');
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, () => dropzone.classList.add('border-blue-500', 'bg-blue-50'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, () => dropzone.classList.remove('border-blue-500', 'bg-blue-50'), false);
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles({ target: { files: files } });
+    }, false);
+
+    fileInput.addEventListener('change', handleFiles);
+}
+function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+async function handleFiles(e) {
+    if(!SHOP_ONLINE) return alert("This shop is currently not accepting online orders. Please try again later.");
+    
+    const files = e.target.files;
+    document.getElementById('top-loader').classList.remove('hidden');
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.size > 50 * 1024 * 1024) {
+            alert(`File ${file.name} is too large (> 50MB)`);
+            continue;
+        }
+
         let totalPages = 1;
-        if (f.type === 'application/pdf') {
+        if (file.type === 'application/pdf') {
             try {
-                const arrayBuffer = await f.arrayBuffer();
-                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
                 totalPages = pdfDoc.getPageCount();
             } catch (err) {
-                console.error("PDF Parse error:", err);
+                console.error("PDF Parsing error:", err);
+                alert(`Could not parse ${file.name}. It might be encrypted or corrupted.`);
+                continue;
             }
         }
-        
+
         filesData.push({
-            id: Math.random().toString(36).substr(2, 9),
-            originalFile: f,
-            name: f.name,
-            type: f.type,
+            id: 'file_' + Math.random().toString(36).substr(2, 9),
+            name: file.name,
+            type: file.type,
+            originalFile: file,
             totalPages: totalPages,
             config: {
                 copies: 1,
@@ -853,81 +428,101 @@ async function handleFiles(files) {
             }
         });
     }
-    renderFiles();
+
+    document.getElementById('file-input').value = '';
+    renderFileList();
+    calculateTotal();
+    document.getElementById('top-loader').classList.add('hidden');
 }
 
-function renderFiles() {
-    const container = document.getElementById('file-list');
-    container.innerHTML = '';
+function renderFileList() {
+    const listEl = document.getElementById('file-list');
+    listEl.innerHTML = '';
     
-    filesData.forEach((f) => {
-        const div = document.createElement('div');
-        div.className = 'file-card';
-        div.innerHTML = `
-            <div class="file-header" style="display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 1rem;">
-                    ${f.type.startsWith('image/') ? `<img src="${URL.createObjectURL(f.originalFile)}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">` : '<div style="width: 40px; height: 40px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">📄</div>'}
-                    <div class="file-name" style="margin: 0;">${f.name} <span class="file-badge">${f.type === 'application/pdf' ? f.totalPages + ' Pages' : 'Image'}</span></div>
+    filesData.forEach((f, index) => {
+        let previewHtml = `<div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center shrink-0 border border-slate-200"><i data-lucide="file-text" class="w-6 h-6 text-slate-400"></i></div>`;
+        if (f.type.startsWith('image/')) {
+            previewHtml = `<img src="${URL.createObjectURL(f.originalFile)}" class="w-12 h-12 object-cover rounded-xl shrink-0 border border-slate-200 shadow-sm">`;
+        } else if (f.type === 'application/pdf') {
+            previewHtml = `<div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center shrink-0 border border-red-100"><i data-lucide="file-text" class="w-6 h-6 text-red-500"></i></div>`;
+        }
+
+        let html = `
+        <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col gap-4 fade-in hover:shadow-md transition-shadow">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex items-center gap-3 sm:gap-4 overflow-hidden">
+                    ${previewHtml}
+                    <div class="overflow-hidden">
+                        <h4 class="font-bold text-slate-800 truncate text-sm sm:text-base">${f.name}</h4>
+                        <p class="text-[11px] sm:text-xs font-semibold text-slate-500 mt-0.5 flex items-center gap-1"><i data-lucide="layers" class="w-3 h-3"></i> ${f.type === 'application/pdf' ? f.totalPages + ' Pages' : 'Image Document'}</p>
+                    </div>
                 </div>
-                <button class="btn-remove" onclick="removeFile('${f.id}')">Remove</button>
+                <button onclick="removeFile('${f.id}')" class="text-slate-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg shrink-0">
+                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                </button>
             </div>
-            <div class="config-grid">
-                <div class="input-group">
-                    <label>Copies</label>
-                    <input type="number" min="1" value="${f.config.copies}" onchange="updateConfig('${f.id}', 'copies', this.value)">
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50/50 rounded-xl p-3 border border-slate-100">
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Copies</label>
+                    <input type="number" min="1" value="${f.config.copies}" onchange="updateConfig('${f.id}', 'copies', this.value)" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all">
                 </div>
-                <div class="input-group">
-                    <label>Color</label>
-                    <select onchange="updateConfig('${f.id}', 'colorMode', this.value)">
-                        <option value="bw" ${f.config.colorMode === 'bw' ? 'selected' : ''}>Black & White</option>
-                        <option value="color" ${f.config.colorMode === 'color' ? 'selected' : ''}>Color</option>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Color</label>
+                    <select onchange="updateConfig('${f.id}', 'colorMode', this.value)" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all appearance-none cursor-pointer">
+                        <option value="bw" ${f.config.colorMode === 'bw' ? 'selected' : ''}>B&W (₹${RATES.bw.toFixed(2)})</option>
+                        <option value="color" ${f.config.colorMode === 'color' ? 'selected' : ''}>Color (₹${RATES.color.toFixed(2)})</option>
                     </select>
                 </div>
-                <div class="input-group">
-                    <label>Sides</label>
-                    <select onchange="updateConfig('${f.id}', 'sides', this.value)">
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sides</label>
+                    <select onchange="updateConfig('${f.id}', 'sides', this.value)" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all appearance-none cursor-pointer">
                         <option value="single" ${f.config.sides === 'single' ? 'selected' : ''}>Single Sided</option>
                         <option value="double" ${f.config.sides === 'double' ? 'selected' : ''}>Double Sided</option>
                     </select>
                 </div>
                 ${f.type === 'application/pdf' ? `
-                <div class="input-group" style="flex: 2; min-width: 100%;">
-                    <label>Specific Pages</label>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                        <input type="text" style="flex: 1; min-width: 150px;" placeholder="e.g. 1-3, 5 (Leave blank for all)" value="${f.config.pageRange}" onchange="updateConfig('${f.id}', 'pageRange', this.value)">
-                        <button class="btn-primary" style="padding: 0.75rem 1rem; white-space: nowrap; display: flex; align-items: center; gap: 0.5rem; background: #3b82f6;" onclick="openVisualSlicer('${f.id}')">
-                            👁️ Visual Select
-                        </button>
-                    </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                        <span>Pages</span>
+                        <button onclick="openVisualSlicer('${f.id}')" class="text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded-md"><i data-lucide="eye" class="w-3 h-3"></i> Visual</button>
+                    </label>
+                    <input type="text" placeholder="e.g. 1-3" value="${f.config.pageRange}" onchange="updateConfig('${f.id}', 'pageRange', this.value)" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono">
                 </div>
                 ` : ''}
             </div>
-        `;
-        container.appendChild(div);
+        </div>`;
+        listEl.insertAdjacentHTML('beforeend', html);
     });
-    calculateTotal();
+    lucide.createIcons();
 }
 
 function updateConfig(id, key, value) {
     const f = filesData.find(x => x.id === id);
-    if (f) f.config[key] = value;
-    calculateTotal();
+    if(f) {
+        if(key === 'copies') value = Math.max(1, parseInt(value) || 1);
+        f.config[key] = value;
+        calculateTotal();
+    }
 }
 
 function removeFile(id) {
     filesData = filesData.filter(x => x.id !== id);
-    renderFiles();
+    renderFileList();
+    calculateTotal();
 }
 
 function parsePageRange(rangeStr, totalPages) {
-    if (!rangeStr.trim()) return Array.from({length: totalPages}, (_, i) => i);
+    if (!rangeStr || rangeStr.toLowerCase() === 'all') {
+        return Array.from({length: totalPages}, (_, i) => i);
+    }
     const pages = new Set();
     const parts = rangeStr.split(',');
-    for (const part of parts) {
+    for (let part of parts) {
         if (part.includes('-')) {
-            const [start, end] = part.split('-').map(n => parseInt(n.trim()));
-            if (!isNaN(start) && !isNaN(end)) {
-                for (let i = start; i <= end; i++) if (i >= 1 && i <= totalPages) pages.add(i - 1);
+            const [start, end] = part.split('-').map(p => parseInt(p.trim()));
+            if (!isNaN(start) && !isNaN(end) && start <= end) {
+                for (let i = Math.max(1, start); i <= Math.min(totalPages, end); i++) pages.add(i - 1);
             }
         } else {
             const num = parseInt(part.trim());
@@ -947,178 +542,23 @@ function calculateTotal() {
         const rate = f.config.colorMode === 'color' ? RATES.color : RATES.bw;
         total += (pagesToPrint * f.config.copies * rate);
     });
-    document.getElementById('total-price').textContent = '₹' + total.toFixed(2);
+    
+    // Animate the price change
+    const priceEl = document.getElementById('total-price');
+    priceEl.classList.add('scale-110', 'text-indigo-600');
+    priceEl.textContent = '₹' + total.toFixed(2);
+    setTimeout(() => priceEl.classList.remove('scale-110', 'text-indigo-600'), 200);
+    
     return total;
 }
 
-function showError(title, msg) {
-    const overlay = document.getElementById('loading-overlay');
-    document.querySelector('.loader').style.display = 'none';
-    document.getElementById('overlay-title').textContent = title || 'Error';
-    document.getElementById('overlay-title').style.color = 'var(--danger)';
-    document.getElementById('overlay-desc').textContent = '';
-    
-    if (msg) {
-        const errEl = document.getElementById('overlay-error');
-        errEl.textContent = msg;
-        errEl.style.display = 'block';
-    }
-    document.getElementById('btn-close-error').style.display = 'block';
-    overlay.style.display = 'flex';
+function updatePaymentUI() {
+    // Checkbox custom styles handle visual flair in CSS automatically
 }
 
-function closeError() {
-    document.getElementById('loading-overlay').style.display = 'none';
-    document.querySelector('.loader').style.display = 'block';
-    document.getElementById('overlay-error').style.display = 'none';
-    document.getElementById('btn-close-error').style.display = 'none';
-    document.getElementById('overlay-title').style.color = 'var(--primary)';
-}
-
-async function processPdf(fileObj, pageIndices) {
-    const arrayBuffer = await fileObj.arrayBuffer();
-    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-    const newPdf = await PDFLib.PDFDocument.create();
-    const copiedPages = await newPdf.copyPages(pdfDoc, pageIndices);
-    copiedPages.forEach((page) => newPdf.addPage(page));
-    const pdfBytes = await newPdf.save();
-    return new Blob([pdfBytes], { type: 'application/pdf' });
-}
-
-function handleCheckout() {
-    if (filesData.length === 0) return alert('Please upload at least one file first.');
-    const name = document.getElementById('c_name').value.trim();
-    const phone = document.getElementById('c_phone').value.trim();
-    
-    if (!name || !phone) return alert('Name and phone number are required.');
-    
-    const isOnline = document.querySelector('input[name="payment_method"]:checked').value === 'online';
-    const totalAmount = calculateTotal();
-    
-    if (isOnline) {
-        // Mock Razorpay Integration for Frontend
-        // Note: A real implementation requires a server to create an Order ID using Razorpay Secrets.
-        var options = {
-            "key": "rzp_test_YourTestKeyHere", // Replace with real test key or live key
-            "amount": totalAmount * 100, // Amount in paise
-            "currency": "INR",
-            "name": "PrintHub",
-            "description": "Document Printing Service",
-            "handler": function (response){
-                // On successful payment
-                submitOrder(response.razorpay_payment_id);
-            },
-            "prefill": {
-                "name": name,
-                "contact": phone
-            },
-            "theme": { "color": "#2563eb" }
-        };
-        var rzp1 = new Razorpay(options);
-        rzp1.on('payment.failed', function (response){
-            alert("Payment Failed. Please try again or choose 'Pay at Shop'.");
-        });
-        rzp1.open();
-    } else {
-        submitOrder(null);
-    }
-}
-
-async function submitOrder(paymentId) {
-    const name = document.getElementById('c_name').value.trim();
-    const phone = document.getElementById('c_phone').value.trim();
-    const email = document.getElementById('c_email') ? document.getElementById('c_email').value.trim() : '';
-    const notes = document.getElementById('c_notes').value.trim();
-    const totalAmount = calculateTotal();
-    
-    const overlay = document.getElementById('loading-overlay');
-    const overlayTitle = document.getElementById('overlay-title');
-    const overlayDesc = document.getElementById('overlay-desc');
-    
-    overlay.style.display = 'flex';
-    document.querySelector('.loader').style.display = 'block';
-    
-    try {
-        overlayTitle.textContent = 'Preparing Files...';
-        overlayDesc.textContent = 'Generating secure PIN...';
-        
-        // Prevent OTP collision by combining random digits with phone number
-        const randomPart = Math.floor(10 + Math.random() * 90).toString();
-        const phoneSuffix = phone.length >= 2 ? phone.slice(-2) : "00";
-        const otpCode = randomPart + phoneSuffix;
-        
-        // Determine status based on payment
-        const initialStatus = paymentId ? 'Paid' : 'Pending';
-        
-        // 1. Create Order
-        overlayTitle.textContent = 'Uploading...';
-        const { data: orderData, error: orderErr } = await supabaseClient
-            .from('printhub_orders')
-            .insert([{ 
-                shop_id: currentShopId,
-                customer_name: name, 
-                customer_email: email, 
-                customer_phone: phone, 
-                notes: paymentId ? `[PAID ONLINE: ${paymentId}] ${notes}` : notes, 
-                total_amount: totalAmount, 
-                otp: otpCode,
-                status: initialStatus
-            }])
-            .select();
-            
-        if (orderErr) throw new Error("Order Creation Failed: " + (orderErr.message || JSON.stringify(orderErr)));
-        const orderId = orderData[0].id;
-
-        // 2. Process Files
-        for (let i = 0; i < filesData.length; i++) {
-            const f = filesData[i];
-            overlayDesc.textContent = `Processing file ${i+1} of ${filesData.length}`;
-            
-            let finalBlob = f.originalFile;
-            let finalPages = f.totalPages;
-            
-            if (f.type === 'application/pdf' && f.config.pageRange) {
-                const pageIndices = parsePageRange(f.config.pageRange, f.totalPages);
-                if (pageIndices.length > 0) {
-                    finalBlob = await processPdf(f.originalFile, pageIndices);
-                    finalPages = pageIndices.length;
-                }
-            }
-            
-            const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-            
-            const { error: uploadErr } = await supabaseClient.storage.from('print-files').upload(storagePath, finalBlob);
-            if (uploadErr) throw new Error("File Upload Failed: " + (uploadErr.message || JSON.stringify(uploadErr)));
-            
-            const { error: fileDbErr } = await supabaseClient.from('printhub_files').insert([{
-                order_id: orderId,
-                file_name: f.name,
-                storage_path: storagePath,
-                pages: finalPages,
-                copies: parseInt(f.config.copies),
-                color_mode: f.config.colorMode,
-                sides: f.config.sides,
-                page_range: f.config.pageRange || 'All'
-            }]);
-            if (fileDbErr) throw new Error("Database Sync Failed: " + (fileDbErr.message || JSON.stringify(fileDbErr)));
-        }
-
-        // Hide loader, show OTP modal
-        document.getElementById('loading-overlay').style.display = 'none';
-        
-        document.getElementById('otp-display-value').textContent = otpCode;
-        document.getElementById('otp-modal').style.display = 'flex';
-
-    } catch (e) {
-        console.error("Submission Error:", e);
-        showError("Upload Failed", e.message || "Unknown error occurred.");
-    }
-}
-
-function finishOrder() {
-    window.location.reload();
-}
-
+// ---------------------------------------------------------
+// PDF.js VISUAL SLICER LOGIC
+// ---------------------------------------------------------
 let currentSlicerFileIndex = -1;
 let currentSlicerPdf = null;
 let slicerSelectedPages = new Set();
@@ -1130,11 +570,13 @@ async function openVisualSlicer(fileId) {
     const f = filesData[fileIndex];
     if (f.type !== 'application/pdf') return alert("Preview only available for PDFs.");
     
-    document.getElementById('slicer-modal').style.display = 'flex';
-    const grid = document.getElementById('slicer-grid');
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; font-size: 1.2rem;">Loading High-Res PDF Previews...<br><span style="font-size:0.9rem; color:#aaa;">This may take a few seconds for large textbooks.</span></div>';
+    const modal = document.getElementById('slicer-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex', 'fade-in');
     
-    // Parse current range or default to all
+    const grid = document.getElementById('slicer-grid');
+    grid.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center p-12 text-slate-400"><div class="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4"></div><p class="font-medium text-slate-600">Rendering high-res thumbnails...</p></div>';
+    
     let initialPages = [];
     if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
         initialPages = parsePageRange(f.config.pageRange, f.totalPages);
@@ -1142,39 +584,37 @@ async function openVisualSlicer(fileId) {
         for(let i = 1; i <= f.totalPages; i++) initialPages.push(i-1);
     }
     slicerSelectedPages = new Set(initialPages);
-    
     updateSlicerInput();
 
-    // Load PDF via PDF.js
     const arrayBuffer = await f.originalFile.arrayBuffer();
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
     
     try {
         currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-        grid.innerHTML = ''; // clear loading
+        grid.innerHTML = '';
         
-        // Render pages
         for(let i = 1; i <= currentSlicerPdf.numPages; i++) {
             const thumb = document.createElement('div');
-            thumb.className = 'page-thumbnail ' + (slicerSelectedPages.has(i-1) ? 'selected' : '');
+            thumb.className = `relative cursor-pointer rounded-lg overflow-hidden border-4 transition-all hover:scale-[1.02] bg-white ${slicerSelectedPages.has(i-1) ? 'border-blue-500 shadow-md shadow-blue-200' : 'border-transparent shadow-sm hover:border-slate-300'}`;
             thumb.onclick = () => toggleSlicerPage(i-1, thumb);
             
             const canvas = document.createElement('canvas');
-            const pageNumStr = document.createElement('div');
-            pageNumStr.className = 'page-number';
-            pageNumStr.innerText = i;
+            canvas.className = "w-full h-auto block";
+            
+            const pageNum = document.createElement('div');
+            pageNum.className = "absolute bottom-0 right-0 bg-slate-900/80 backdrop-blur-sm text-white px-3 py-1 text-xs font-bold rounded-tl-lg";
+            pageNum.innerText = i;
             
             const check = document.createElement('div');
-            check.className = 'check-icon';
-            check.innerHTML = '✓';
+            check.className = `absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center shadow-md transition-all ${slicerSelectedPages.has(i-1) ? 'bg-blue-500 scale-100' : 'bg-transparent scale-0'}`;
+            check.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-white"></i>`;
             
             thumb.appendChild(canvas);
-            thumb.appendChild(pageNumStr);
+            thumb.appendChild(pageNum);
             thumb.appendChild(check);
             grid.appendChild(thumb);
             
-            // Async render canvas
             currentSlicerPdf.getPage(i).then(page => {
                 const viewport = page.getViewport({scale: 0.6});
                 canvas.height = viewport.height;
@@ -1182,19 +622,31 @@ async function openVisualSlicer(fileId) {
                 page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
             });
         }
+        lucide.createIcons();
     } catch (e) {
-        grid.innerHTML = '<div style="color: #ef4444; padding: 2rem;">Failed to render PDF preview.</div>';
-        console.error(e);
+        grid.innerHTML = '<div class="col-span-full text-center text-red-500 p-8 font-bold"><i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-2"></i> Failed to render PDF preview.</div>';
+        lucide.createIcons();
     }
 }
 
 function toggleSlicerPage(pageIndex, element) {
+    const check = element.querySelector('.absolute\\.top-2\\.right-2');
     if (slicerSelectedPages.has(pageIndex)) {
         slicerSelectedPages.delete(pageIndex);
-        element.classList.remove('selected');
+        element.classList.replace('border-blue-500', 'border-transparent');
+        element.classList.remove('shadow-md', 'shadow-blue-200');
+        if(check) {
+            check.classList.replace('bg-blue-500', 'bg-transparent');
+            check.classList.replace('scale-100', 'scale-0');
+        }
     } else {
         slicerSelectedPages.add(pageIndex);
-        element.classList.add('selected');
+        element.classList.replace('border-transparent', 'border-blue-500');
+        element.classList.add('shadow-md', 'shadow-blue-200');
+        if(check) {
+            check.classList.replace('bg-transparent', 'bg-blue-500');
+            check.classList.replace('scale-0', 'scale-100');
+        }
     }
     updateSlicerInput();
 }
@@ -1226,35 +678,190 @@ function syncSlicerGridFromInput() {
     
     const grid = document.getElementById('slicer-grid');
     for(let i=0; i<grid.children.length; i++) {
-        if(slicerSelectedPages.has(i)) grid.children[i].classList.add('selected');
-        else grid.children[i].classList.remove('selected');
+        const thumb = grid.children[i];
+        const check = thumb.querySelector('.absolute\\.top-2\\.right-2');
+        if(slicerSelectedPages.has(i)) {
+            thumb.classList.replace('border-transparent', 'border-blue-500');
+            thumb.classList.add('shadow-md', 'shadow-blue-200');
+            if(check) {
+                check.classList.replace('bg-transparent', 'bg-blue-500');
+                check.classList.replace('scale-0', 'scale-100');
+            }
+        } else {
+            thumb.classList.replace('border-blue-500', 'border-transparent');
+            thumb.classList.remove('shadow-md', 'shadow-blue-200');
+            if(check) {
+                check.classList.replace('bg-blue-500', 'bg-transparent');
+                check.classList.replace('scale-100', 'scale-0');
+            }
+        }
     }
 }
 
 function saveSlicerSelection() {
+    if (currentSlicerFileIndex === -1) return;
     const f = filesData[currentSlicerFileIndex];
     const newValue = document.getElementById('slicer-range-input').value;
-    document.getElementById('slicer-modal').style.display = 'none';
-    // This triggers renderFileList AND calculateTotal cleanly:
+    closeSlicer();
     updateConfig(f.id, 'pageRange', newValue);
+    // Update the UI explicitly
+    const inputField = document.querySelector(`input[onchange*="'${f.id}', 'pageRange'"]`);
+    if(inputField) inputField.value = newValue;
 }
+
 function closeSlicer() {
-    document.getElementById('slicer-modal').style.display = 'none';
+    const modal = document.getElementById('slicer-modal');
+    modal.classList.remove('flex', 'fade-in');
+    modal.classList.add('hidden');
+}
+
+// ---------------------------------------------------------
+// PDF PROCESSING & CHECKOUT LOGIC
+// ---------------------------------------------------------
+async function processPdf(fileObj, pageIndices) {
+    const arrayBuffer = await fileObj.arrayBuffer();
+    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+    const newPdf = await PDFLib.PDFDocument.create();
+    const copiedPages = await newPdf.copyPages(pdfDoc, pageIndices);
+    copiedPages.forEach((page) => newPdf.addPage(page));
+    const pdfBytes = await newPdf.save();
+    return new Blob([pdfBytes], { type: 'application/pdf' });
+}
+
+function handleCheckout() {
+    if (filesData.length === 0) return alert('Please upload at least one file first.');
+    const name = document.getElementById('c_name').value.trim();
+    const phone = document.getElementById('c_phone').value.trim();
+    
+    if (!name || !phone) {
+        document.getElementById('c_name').classList.add('border-red-500', 'ring-2', 'ring-red-200');
+        document.getElementById('c_phone').classList.add('border-red-500', 'ring-2', 'ring-red-200');
+        setTimeout(() => {
+            document.getElementById('c_name').classList.remove('border-red-500', 'ring-2', 'ring-red-200');
+            document.getElementById('c_phone').classList.remove('border-red-500', 'ring-2', 'ring-red-200');
+        }, 2000);
+        return;
+    }
+    
+    const isOnline = document.querySelector('input[name="payment_method"]:checked').value === 'online';
+    const totalAmount = calculateTotal();
+    
+    if (isOnline) {
+        var options = {
+            "key": "rzp_test_YourTestKeyHere",
+            "amount": totalAmount * 100,
+            "currency": "INR",
+            "name": currentShopName,
+            "description": "Document Printing Service",
+            "handler": function (response){
+                submitOrder(response.razorpay_payment_id);
+            },
+            "prefill": { "name": name, "contact": phone },
+            "theme": { "color": "#2563eb" }
+        };
+        var rzp1 = new Razorpay(options);
+        rzp1.on('payment.failed', function (response){
+            alert("Payment Failed. Please try again or choose 'Pay at Shop'.");
+        });
+        rzp1.open();
+    } else {
+        submitOrder(null);
+    }
+}
+
+async function submitOrder(paymentId) {
+    const name = document.getElementById('c_name').value.trim();
+    const phone = document.getElementById('c_phone').value.trim();
+    const notes = document.getElementById('c_notes').value.trim();
+    const totalAmount = calculateTotal();
+    
+    const overlay = document.getElementById('loading-overlay');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlayDesc = document.getElementById('overlay-desc');
+    
+    overlay.classList.remove('hidden');
+    overlay.style.opacity = '1';
+    document.querySelector('#loading-overlay .animate-spin').style.display = 'block';
+    
+    try {
+        overlayTitle.textContent = 'Preparing Secure Transfer...';
+        overlayDesc.textContent = 'Generating end-to-end PIN...';
+        
+        const randomPart = Math.floor(10 + Math.random() * 90).toString();
+        const phoneSuffix = phone.length >= 2 ? phone.slice(-2) : "00";
+        const otpCode = randomPart + phoneSuffix;
+        
+        const initialStatus = paymentId ? 'Paid' : 'Pending';
+        
+        overlayTitle.textContent = 'Authenticating Request...';
+        const { data: orderData, error: orderErr } = await supabaseClient
+            .from('printhub_orders')
+            .insert([{ 
+                shop_id: currentShopId,
+                customer_name: name, 
+                customer_phone: phone, 
+                notes: paymentId ? `[PAID ONLINE: ${paymentId}] ${notes}` : notes, 
+                total_amount: totalAmount, 
+                otp: otpCode,
+                status: initialStatus
+            }])
+            .select();
+            
+        if (orderErr) throw new Error("Connection failed: " + (orderErr.message || JSON.stringify(orderErr)));
+        const orderId = orderData[0].id;
+
+        for (let i = 0; i < filesData.length; i++) {
+            const f = filesData[i];
+            overlayTitle.textContent = `Uploading File ${i+1} of ${filesData.length}`;
+            overlayDesc.textContent = `Slicing pages for ${f.name}...`;
+            
+            let finalBlob = f.originalFile;
+            let finalPages = f.totalPages;
+            
+            if (f.type === 'application/pdf' && f.config.pageRange) {
+                const pageIndices = parsePageRange(f.config.pageRange, f.totalPages);
+                if (pageIndices.length > 0) {
+                    finalBlob = await processPdf(f.originalFile, pageIndices);
+                    finalPages = pageIndices.length;
+                }
+            }
+            
+            overlayDesc.textContent = `Encrypting and transferring...`;
+            const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            
+            const { error: uploadErr } = await supabaseClient.storage.from('print-files').upload(storagePath, finalBlob);
+            if (uploadErr) throw new Error("Upload Failed: " + (uploadErr.message || JSON.stringify(uploadErr)));
+            
+            const { error: fileDbErr } = await supabaseClient.from('printhub_files').insert([{
+                order_id: orderId,
+                file_name: f.name,
+                storage_path: storagePath,
+                pages: finalPages,
+                copies: parseInt(f.config.copies),
+                color_mode: f.config.colorMode,
+                sides: f.config.sides,
+                page_range: f.config.pageRange || 'All'
+            }]);
+            if (fileDbErr) throw new Error("Database Sync Failed: " + (fileDbErr.message || JSON.stringify(fileDbErr)));
+        }
+
+        // Success
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.classList.add('hidden'), 300);
+        
+        document.getElementById('otp-display-value').textContent = otpCode;
+        
+        const otpModal = document.getElementById('otp-modal');
+        otpModal.classList.remove('hidden');
+        otpModal.classList.add('flex', 'fade-in');
+
+    } catch (e) {
+        console.error("Submission Error:", e);
+        showError("Transfer Failed", e.message || "Unknown network error occurred.");
+    }
+}
+
+function finishOrder() {
+    window.location.reload();
 }
 </script>
-
-<!-- Visual Slicer Modal -->
-<div id="slicer-modal">
-    <div class="slicer-header">
-        <h2 style="margin: 0; color: #0f172a;">Visual Smart Slicer</h2>
-        <button class="btn-primary" style="background: #444;" onclick="closeSlicer()">Cancel</button>
-    </div>
-    <div class="slicer-body" id="slicer-grid"></div>
-    <div class="slicer-footer">
-        <label style="font-weight: bold;">Selected Pages:</label>
-        <input type="text" id="slicer-range-input" onkeyup="syncSlicerGridFromInput()" placeholder="e.g. 1-3, 5, 7">
-        <button class="btn-primary" onclick="saveSlicerSelection()">Confirm Selection</button>
-    </div>
-</div>
-</body>
-</html>
