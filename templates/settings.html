@@ -12,7 +12,33 @@
     <form method="POST" action="{{ url_for('settings') }}">
         
         <!-- Cloud Settings -->
+        
         <div class="card">
+            <h3>Shop Profile (Cloud)</h3>
+            <p style="color: #64748b; font-size: 0.9rem; margin-top: -10px; margin-bottom: 20px;">This updates your public branding on your unique Vercel link.</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="form-group">
+                    <label>Shop Name</label>
+                    <input type="text" name="shop_name" value="{{ shop_data.get('shop_name', '') }}" required>
+                </div>
+                <div class="form-group">
+                    <label>Logo URL (Optional)</label>
+                    <input type="text" name="logo_url" value="{{ shop_data.get('logo_url', '') }}" placeholder="https://example.com/logo.png">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Physical Location / Address</label>
+                <input type="text" name="location" value="{{ shop_data.get('location', '') }}" placeholder="e.g., Near Main Gate, MIT Campus">
+            </div>
+            <div class="form-group">
+                <label>Offer Banner / Announcement (Optional)</label>
+                <input type="text" name="offer_banner" value="{{ cloud_config.get('offer_banner', '') }}" placeholder="e.g., 50% Off Color Prints Today!">
+            </div>
+        </div>
+
+        <div class="card">
+
             <h3 style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">Public Site Configuration (Cloud)</h3>
             <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">These settings sync directly to your live Vercel website.</p>
             
