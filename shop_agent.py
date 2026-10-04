@@ -28,7 +28,7 @@ CONFIG_FILE = "shop_config.json"
 import platform
 import hashlib
 
-# Enterprise Hardware ID (Deep OS-level Silicon tracking)
+# Military-Grade Hardware ID (Cross-Platform Silicon Tracking)
 def get_hwid():
     system = platform.system()
     hw_string = ""
@@ -40,18 +40,40 @@ def get_hwid():
                     hw_string = line.split('=')[1].strip().strip('"')
                     break
         elif system == "Windows":
-            result = subprocess.run(['wmic', 'csproduct', 'get', 'uuid'], capture_output=True, text=True)
-            hw_string = result.stdout.split('\n')[1].strip()
+            # 1. Primary Windows Approach: Native Registry Cryptography Key (Fastest, zero-crash)
+            try:
+                import winreg
+                registry = winreg.HKEY_LOCAL_MACHINE
+                address = r"SOFTWARE\Microsoft\Cryptography"
+                # KEY_WOW64_64KEY ensures we don't get redirected on 64-bit systems
+                key = winreg.OpenKey(registry, address, 0, winreg.KEY_READ | 0x0100) 
+                hw_string, _ = winreg.QueryValueEx(key, "MachineGuid")
+                winreg.CloseKey(key)
+            except Exception as e:
+                pass
+            
+            # 2. Fallback: WMIC Motherboard UUID (Supresses command prompt window popup)
+            if not hw_string:
+                CREATE_NO_WINDOW = 0x08000000
+                result = subprocess.run(['wmic', 'csproduct', 'get', 'uuid'], capture_output=True, text=True, creationflags=CREATE_NO_WINDOW)
+                lines = [l.strip() for l in result.stdout.split('\n') if l.strip()]
+                if len(lines) > 1:
+                    hw_string = lines[1]
+                    
         elif system == "Linux":
             with open('/etc/machine-id', 'r') as f:
                 hw_string = f.read().strip()
     except Exception:
         pass
         
-    if not hw_string:
+    # Catch empty strings or cheap motherboards with dummy UUIDs
+    if not hw_string or hw_string == "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF":
         hw_string = str(uuid.getnode())
         
-    return hashlib.sha256(hw_string.encode()).hexdigest()[:16]
+    # Cryptographic Salt to prevent hash reversing
+    salt = "PRINTHUB_ENCLAVE_v1_"
+    salted_string = salt + hw_string
+    return hashlib.sha256(salted_string.encode()).hexdigest()[:16].upper()
 
 HWID = get_hwid()
 
