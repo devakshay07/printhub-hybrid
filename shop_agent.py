@@ -25,9 +25,33 @@ TEMP_DIR = "temp_print_spool"
 os.makedirs(TEMP_DIR, exist_ok=True)
 CONFIG_FILE = "shop_config.json"
 
-# Cryptographic Hardware ID (Motherboard/MAC hash)
+import platform
+import hashlib
+
+# Enterprise Hardware ID (Deep OS-level Silicon tracking)
 def get_hwid():
-    return str(uuid.getnode())
+    system = platform.system()
+    hw_string = ""
+    try:
+        if system == "Darwin": # macOS
+            result = subprocess.run(['ioreg', '-rd1', '-c', 'IOPlatformExpertDevice'], capture_output=True, text=True)
+            for line in result.stdout.split('\n'):
+                if 'IOPlatformUUID' in line:
+                    hw_string = line.split('=')[1].strip().strip('"')
+                    break
+        elif system == "Windows":
+            result = subprocess.run(['wmic', 'csproduct', 'get', 'uuid'], capture_output=True, text=True)
+            hw_string = result.stdout.split('\n')[1].strip()
+        elif system == "Linux":
+            with open('/etc/machine-id', 'r') as f:
+                hw_string = f.read().strip()
+    except Exception:
+        pass
+        
+    if not hw_string:
+        hw_string = str(uuid.getnode())
+        
+    return hashlib.sha256(hw_string.encode()).hexdigest()[:16]
 
 HWID = get_hwid()
 
