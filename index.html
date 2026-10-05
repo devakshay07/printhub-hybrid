@@ -816,7 +816,14 @@ async function submitOrder() {
         const initialStatus = 'Pending';
         
         overlayTitle.textContent = 'Processing request...';
-        const orderId = crypto.randomUUID();
+        
+        const uuidv4 = () => {
+            return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
+                (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+            );
+        };
+        const orderId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : uuidv4();
+
         const { error: orderErr } = await supabaseClient
             .from('printhub_orders')
             .insert([{ 
@@ -824,7 +831,6 @@ async function submitOrder() {
                 shop_id: currentShopId,
                 customer_name: name, 
                 customer_phone: phone,
-                customer_email: "no-reply@printhub.local",
                 customer_email: "no-reply@printhub.local", 
                 notes: notes, 
                 total_amount: totalAmount, 
