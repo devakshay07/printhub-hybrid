@@ -1,0 +1,274 @@
+import os
+import time
+import subprocess
+import json
+import logging
+import requests
+import platform
+import hashlib
+import uuid
+from getpass import getpass
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+def get_hwid():
+    system = platform.system()
+    hw_string = ""
+    try:
+        if system == "Darwin":
+            result = subprocess.run(['ioreg', '-rd1', '-c', 'IOPlatformExpertDevice'], capture_output=True, text=True)
+            for line in result.stdout.split('\n'):
+                if 'IOPlatformUUID' in line:
+                    hw_string = line.split('=')[1].strip().strip('"')
+                    break
+        elif system == "Windows":
+            try:
+                import winreg
+                registry = winreg.HKEY_LOCAL_MACHINE
+                address = r"SOFTWARE\Microsoft\Cryptography"
+                key = winreg.OpenKey(registry, address, 0, winreg.KEY_READ | 0x0100)
+                hw_string, _ = winreg.QueryValueEx(key, "MachineGuid")
+                winreg.CloseKey(key)
+            except Exception:
+                pass
+            if not hw_string:
+                CREATE_NO_WINDOW = 0x08000000
+                result = subprocess.run(['wmic', 'csproduct', 'get', 'uuid'], capture_output=True, text=True, creationflags=CREATE_NO_WINDOW)
+                lines = [l.strip() for l in result.stdout.split('\n') if l.strip()]
+                if len(lines) > 1:
+                    hw_string = lines[1]
+        elif system == "Linux":
+            with open('/etc/machine-id', 'r') as f:
+                hw_string = f.read().strip()
+    except Exception:
+        pass
+        
+    if not hw_string or hw_string == "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF":
+        hw_string = str(uuid.getnode())
+        
+    salt = "PRINTHUB_ENCLAVE_v1_"
+    return hashlib.sha256((salt + hw_string).encode()).hexdigest()[:16].upper()
+
+HWID = get_hwid()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
+logger = logging.getLogger('PrintBridge')
+
+load_dotenv()
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vukoiwiwokwanonntfhg.supabase.co")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1a29pd2l3b2t3YW5vbm50ZmhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMTM3NTAsImV4cCI6MjEwNjc4OTc1MH0.WPDadfj_WNsX6wYirHxNAjU5sSJE0jiycJWToLPOrcQ")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+TEMP_DIR = "temp_print_spool"
+CONFIG_FILE = "shop_config.json"
+os.makedirs(TEMP_DIR, exist_ok=True)
+
+def get_local_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error reading config: {e}")
+    return {"printer_bw": "", "printer_color": ""}
+
+def print_file(file_path, copies, color_mode, sides):
+    system = platform.system()
+    local_cfg = get_local_config()
+    
+    if system == "Windows":
+        logger.info(f"Using generic Windows print for {file_path}")
+        try:
+            os.startfile(file_path, "print")
+            time.sleep(5)  # Wait a bit for the print spooler to catch it
+            return True
+        except Exception as e:
+            logger.error(f"Windows print failed: {e}")
+            return False
+    else:
+        # macOS / Linux
+        cmd = ["lp", "-n", str(copies)]
+        if color_mode == 'bw':
+            cmd.extend(["-o", "ColorModel=Gray"])
+            if local_cfg.get("printer_bw"):
+                cmd.extend(["-d", local_cfg["printer_bw"]])
+        else:
+            if local_cfg.get("printer_color"):
+                cmd.extend(["-d", local_cfg["printer_color"]])
+                
+        if sides == 'double':
+            cmd.extend(["-o", "sides=two-sided-long-edge"])
+        else:
+            cmd.extend(["-o", "sides=one-sided"])
+            
+        cmd.append(file_path)
+        logger.info(f"Running print command: {' '.join(cmd)}")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logger.error(f"Print failed: {result.stderr}")
+            return False
+        logger.info(f"Print successful: {result.stdout.strip()}")
+        return True
+
+def process_order(order):
+    order_id = order['id']
+    shop_id = order['shop_id']
+    logger.info(f"Processing Order #{order_id[:8]}...")
+    
+    # 1. Update status to 'Printing...' to prevent double processing
+    supabase.table('printhub_orders').update({'status': 'Printing...'}).eq('id', order_id).execute()
+    
+    # 2. Fetch associated files
+    files_res = supabase.table('printhub_files').select('*').eq('order_id', order_id).execute()
+    if not files_res.data:
+        logger.warning(f"No files found for Order #{order_id[:8]}")
+        supabase.table('printhub_orders').update({'status': 'Error: No Files'}).eq('id', order_id).execute()
+        return
+
+    all_printed = True
+    for file_record in files_res.data:
+        storage_path = file_record['storage_path']
+        download_url = supabase.storage.from_('print-files').get_public_url(storage_path)
+        local_filename = os.path.join(TEMP_DIR, os.path.basename(storage_path))
+        
+        # Security: Prevent printing malware or unsupported types
+        ext = os.path.splitext(local_filename)[1].lower()
+        if ext not in ['.pdf', '.png', '.jpg', '.jpeg']:
+            logger.error(f"Security Error: Unsupported file format {ext} for {storage_path}")
+            all_printed = False
+            continue
+
+        # Download
+        logger.info(f"Downloading {storage_path}...")
+        try:
+            r = requests.get(download_url, stream=True, timeout=30)
+            if r.status_code == 200:
+                bytes_downloaded = 0
+                MAX_BYTES = 50 * 1024 * 1024 # 50 MB limit
+                with open(local_filename, 'wb') as f:
+                    for chunk in r.iter_content(1024):
+                        bytes_downloaded += len(chunk)
+                        if bytes_downloaded > MAX_BYTES:
+                            os.remove(local_filename)
+                            logger.error(f"File {storage_path} exceeds 50MB limit. DoS blocked.")
+                            all_printed = False
+                            break
+                        f.write(chunk)
+                if not all_printed: # Tripped the size limit
+                    continue
+            else:
+                logger.error(f"Failed to download {storage_path}: HTTP {r.status_code}")
+                all_printed = False
+                continue
+        except Exception as e:
+            logger.error(f"Network error downloading {storage_path}: {e}")
+            all_printed = False
+            continue
+
+        # Print
+        success = print_file(
+            local_filename, 
+            copies=file_record.get('copies', 1), 
+            color_mode=file_record.get('color_mode', 'bw'), 
+            sides=file_record.get('sides', 'single')
+        )
+        if not success:
+            all_printed = False
+
+        # Secure wipe (Zero-Trace Privacy)
+        if os.path.exists(local_filename):
+            try:
+                os.remove(local_filename)
+                logger.info(f"Securely deleted local payload: {local_filename}")
+            except Exception as e:
+                logger.error(f"Failed to delete {local_filename}: {e}")
+                
+    # 3. Update final status
+    if all_printed:
+        supabase.table('printhub_orders').update({'status': 'Printed'}).eq('id', order_id).execute()
+        logger.info(f"Order #{order_id[:8]} completed successfully.")
+    else:
+        supabase.table('printhub_orders').update({'status': 'Print Failed'}).eq('id', order_id).execute()
+        logger.error(f"Order #{order_id[:8]} encountered errors during printing.")
+
+def main():
+    print("=======================================")
+    print(" PRINT BRIDGE - HEADLESS AGENT ")
+    print("=======================================")
+    
+    email = os.environ.get('SHOP_EMAIL')
+    password = os.environ.get('SHOP_PASSWORD')
+    
+    if not email:
+        email = input("Shop Email: ")
+    if not password:
+        password = getpass("Shop Password: ")
+
+    try:
+        auth_res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        user_id = auth_res.user.id
+        logger.info("Authenticated successfully.")
+    except Exception as e:
+        logger.error(f"Authentication failed: {e}")
+        return
+
+    shop_res = supabase.table('printhub_shops').select('id, is_active').eq('owner_uid', user_id).execute()
+    if not shop_res.data:
+        logger.error("No PrintHub shop linked to this account.")
+        return
+        
+    shop = shop_res.data[0]
+    if not shop.get('is_active'):
+        logger.error("Shop is suspended by Superadmin.")
+        return
+    
+    shop_id = shop['id']
+    
+    # Authenticate HWID
+    try:
+        supabase.table('printhub_shops').update({'active_device_id': HWID}).eq('id', shop_id).execute()
+        logger.info(f"Registered Hardware ID: {HWID}")
+    except Exception as e:
+        logger.error(f"Failed to register HWID: {e}")
+        return
+        
+    logger.info(f"Bridge Active for Shop ID: {shop_id}")
+    logger.info("Polling for approved print jobs...")
+    
+    while True:
+        try:
+            # 1. Hardware Heartbeat & Killswitch Check
+            heartbeat_res = supabase.table('printhub_shops').select('active_device_id, is_active').eq('id', shop_id).execute()
+            if heartbeat_res.data:
+                shop_status = heartbeat_res.data[0]
+                if not shop_status.get('is_active'):
+                    logger.error("Account suspended by platform administrator. Pausing operations.")
+                    time.sleep(30)
+                    continue
+                if str(shop_status.get('active_device_id')) != HWID:
+                    logger.error("Account logged in from another computer. Device access revoked. Exiting.")
+                    break
+                    
+            # Poll for orders that are Paid and otp_verified == True
+            res = supabase.table('printhub_orders')\
+                .select('*')\
+                .eq('shop_id', shop_id)\
+                .eq('status', 'Paid')\
+                .eq('otp_verified', True)\
+                .execute()
+                
+            orders = res.data
+            for order in orders:
+                process_order(order)
+                
+        except Exception as e:
+            logger.error(f"Error during polling: {e}")
+            
+        time.sleep(5)
+
+if __name__ == '__main__':
+    main()
