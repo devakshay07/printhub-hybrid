@@ -101,7 +101,7 @@
     let refreshInterval = null;
 
     // Initialize UI
-    lucide.createIcons();
+    if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
 
     // Elements
     const authScreen = document.getElementById('auth-screen');
@@ -267,7 +267,7 @@
                 ${daysLeft !== 999 ? `<span class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-lg text-xs font-bold">${daysLeft} Days Remaining</span>` : ''}
             </div>`;
         }
-        lucide.createIcons();
+        if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
     }
 
     async function loadOrders() {
@@ -494,7 +494,7 @@
         });
 
         ordersContainer.innerHTML = html;
-        lucide.createIcons();
+        if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
     }
 </script>
 <style>
