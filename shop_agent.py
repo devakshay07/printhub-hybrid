@@ -17,7 +17,7 @@ app = Flask(__name__)
 app.secret_key = "printhub_enterprise_hardware_secret_key_change_me"
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://yfnjzhftofbihvwtcsyq.supabase.co")
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmbmp6aGZ0b2ZiaWh2d3Rjc3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNzI4NzksImV4cCI6MjEwNTg0ODg3OX0.hw5XMsjmgHkUvHYs03vdRSZdhHqznjdkQHp_vwKO-Lg")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "sb_publishable_Cv3U2Ro0rB5Hg_3v5sdy6Q_0mp-YS7m")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
