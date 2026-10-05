@@ -82,7 +82,23 @@
 </div>
 
 <script>
-    const SUPABASE_URL = 'https://vukoiwiwokwanonntfhg.supabase.co';
+    
+window.onerror = function(msg, url, line, col, error) {
+    const logEl = document.getElementById('debug-log');
+    if (logEl) {
+        logEl.innerHTML += `<div style="color:red">[FATAL ERROR] ${msg} at line ${line}</div>`;
+    }
+    return false;
+};
+window.onunhandledrejection = function(event) {
+    const logEl = document.getElementById('debug-log');
+    if (logEl) {
+        logEl.innerHTML += `<div style="color:red">[PROMISE ERROR] ${event.reason}</div>`;
+    }
+};
+
+const SUPABASE_URL = 'https://vukoiwiwokwanonntfhg.supabase.co';
+
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1a29pd2l3b2t3YW5vbm50ZmhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMTM3NTAsImV4cCI6MjEwNjc4OTc1MH0.WPDadfj_WNsX6wYirHxNAjU5sSJE0jiycJWToLPOrcQ';
     
     function sysLog(msg) {
