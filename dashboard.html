@@ -27,7 +27,7 @@
                 <p class="text-sm font-medium text-slate-500 mt-2">Enter your credentials to access the terminal.</p>
             </div>
             
-            <div id="login-form" class="space-y-4">
+            <form id="login-form" class="space-y-4" onsubmit="handleLogin(event)">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
                     <input type="email" id="email" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-medium text-slate-900 focus:border-blue-600 focus:bg-white outline-none transition-colors">
@@ -37,11 +37,11 @@
                     <input type="password" id="password" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-medium text-slate-900 focus:border-blue-600 focus:bg-white outline-none transition-colors">
                 </div>
                 <div id="login-error" class="text-sm font-bold text-red-600 hidden bg-red-50 p-3 rounded-lg border border-red-100"></div>
-                <button type="button" id="btn-login-submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 mt-4">
+                <button type="submit" id="btn-login-submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 mt-4">
                     <i data-lucide="log-in" class="w-5 h-5"></i>
                     Authenticate
                 </button>
-            </div>
+            </form>
         </div>
     </div>
 
@@ -64,7 +64,7 @@
                 <button id="btn-logout" class="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-xl text-sm font-bold transition-colors">
                     Logout
                 </button>
-            </div>
+            </form>
         </header>
 
         <div id="lock-container"></div>
@@ -116,29 +116,35 @@
         }
     });
 
-    document.getElementById('btn-login-submit').addEventListener('click', async (e) => {
+    window.handleLogin = async function(e) {
         e.preventDefault();
-        e.preventDefault();
-        loginError.classList.add('hidden');
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const btn = loginForm.querySelector('button');
-        const oldText = btn.innerHTML;
-        btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Authenticating...';
-        lucide.createIcons();
-        btn.disabled = true;
+        try {
+            loginError.classList.add('hidden');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('btn-login-submit');
+            const oldText = btn.innerHTML;
+            btn.innerHTML = 'Authenticating...';
+            btn.disabled = true;
 
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        
-        if (error) {
-            loginError.textContent = error.message;
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            
+            if (error) {
+                loginError.textContent = error.message;
+                loginError.classList.remove('hidden');
+            }
+            
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+        } catch (err) {
+            loginError.textContent = 'System error: ' + err.message;
             loginError.classList.remove('hidden');
+            const btn = document.getElementById('btn-login-submit');
+            btn.innerHTML = 'Authenticate';
+            btn.disabled = false;
         }
-        
-        btn.innerHTML = oldText;
-        lucide.createIcons();
-        btn.disabled = false;
-    });
+        return false;
+    };
 
     document.getElementById('btn-logout').addEventListener('click', () => {
         supabase.auth.signOut();
@@ -411,7 +417,7 @@
                     </div>
                     <form class="relative z-10 flex gap-2 w-full sm:w-auto" onsubmit="handleVerifyOtp(event, '${order.id}')">
                         <input type="text" placeholder="PIN" required maxlength="4" class="w-full sm:w-24 bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-2 text-white font-mono text-center tracking-widest focus:border-blue-500 outline-none placeholder:text-slate-600 transition-colors">
-                        <button type="button" id="btn-login-submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition-colors shrink-0">Unlock</button>
+                        <button type="submit" id="btn-login-submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition-colors shrink-0">Unlock</button>
                     </div>
                 </div>`;
             } else if (isVerified && isPaid) {
