@@ -110,7 +110,9 @@ const SUPABASE_URL = 'https://vukoiwiwokwanonntfhg.supabase.co';
         }
     }
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    sysLog('SYSTEM BOOTING...');
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let currentSession = null;
     let shopId = null;
