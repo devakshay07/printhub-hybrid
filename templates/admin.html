@@ -106,10 +106,17 @@
             {% endif %}
             
             {% if order.notes %}
-            <div class="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 mb-6 text-sm text-blue-900 flex items-start gap-3">
-                <i data-lucide="message-square" class="w-5 h-5 text-blue-500 shrink-0 mt-0.5"></i>
-                <span class="font-medium">{{ order.notes }}</span>
-            </div>
+                {% if '[URGENT]' in order.notes %}
+                <div class="mt-4 bg-red-50 border-2 border-red-500 rounded-xl p-3 flex items-start gap-2 animate-pulse shadow-lg shadow-red-500/20">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600 mt-0.5 font-bold"></i>
+                    <span class="font-black text-red-700 text-lg uppercase tracking-wider">URGENT: {{ order.notes }}</span>
+                </div>
+                {% else %}
+                <div class="mt-4 bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-start gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-slate-400 mt-0.5"></i>
+                    <span class="font-medium">{{ order.notes }}</span>
+                </div>
+                {% endif %}
             {% endif %}
 
             {% if is_locked %}

@@ -39,6 +39,23 @@
 </head>
 <body class="antialiased min-h-screen selection:bg-blue-200">
 
+    <!-- SOCIAL PROOF BANNER -->
+    <div class="bg-blue-600 text-white text-xs font-bold text-center py-2 px-4 shadow-sm relative overflow-hidden">
+        <div class="animate-pulse flex items-center justify-center gap-2">
+            <i data-lucide="zap" class="w-4 h-4 text-yellow-300"></i>
+            <span><span id="random-counter">24</span> students have printed their files at this shop today.</span>
+        </div>
+    </div>
+    
+    <script>
+        // Randomize the counter slightly to look organic
+        setTimeout(() => {
+            const el = document.getElementById('random-counter');
+            if(el) el.innerText = Math.floor(Math.random() * (45 - 12 + 1) + 12);
+        }, 100);
+    </script>
+
+
     <!-- Top Loading Bar (Optional, but looks nice) -->
     <div id="top-loader" class="fixed top-0 left-0 w-full h-1 bg-blue-600 hidden z-50 transition-all duration-300"></div>
 
@@ -99,18 +116,48 @@
             </div>
         </div>
 
-        <!-- PAYMENT METHOD -->
-        <div class="fade-in bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 mt-8 mb-12">
-            
-    </main>
-
-    <!-- FLOATING CHECKOUT FOOTER (Glassmorphism) -->
-    <div class="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-xl border-t border-slate-200 p-4 sm:p-6 z-40 pb-safe">
-        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="flex flex-col text-center sm:text-left">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Amount</span>
-                <strong id="total-price" class="text-3xl font-extrabold text-blue-600 leading-none mt-1">₹0.00</strong>
+        
+        <!-- FINISHING OPTIONS (UPSELLS) -->
+        <div class="fade-in bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-6 sm:p-8 shadow-sm border border-blue-100 mt-8 mb-12">
+            <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-5 h-5 text-blue-600"></i> Finishing & Upgrades
+            </h3>
+            <div class="space-y-3">
+                <label class="flex items-center justify-between p-4 bg-white rounded-2xl border border-blue-100 shadow-sm cursor-pointer hover:border-blue-300 transition-all">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="upsell_urgent" value="20" class="upsell-cb w-5 h-5 text-blue-600 rounded focus:ring-blue-500" onchange="updateUI()">
+                        <div>
+                            <span class="block font-bold text-slate-700">Urgent Fast-Track</span>
+                            <span class="block text-xs text-slate-500">Skip the queue, print immediately</span>
+                        </div>
+                    </div>
+                    <span class="font-bold text-blue-600">+₹20</span>
+                </label>
+                
+                <label class="flex items-center justify-between p-4 bg-white rounded-2xl border border-blue-100 shadow-sm cursor-pointer hover:border-blue-300 transition-all">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="upsell_spiral" value="40" class="upsell-cb w-5 h-5 text-blue-600 rounded focus:ring-blue-500" onchange="updateUI()">
+                        <div>
+                            <span class="block font-bold text-slate-700">Spiral Binding</span>
+                            <span class="block text-xs text-slate-500">Professional spiral bind with clear covers</span>
+                        </div>
+                    </div>
+                    <span class="font-bold text-blue-600">+₹40</span>
+                </label>
+                
+                <label class="flex items-center justify-between p-4 bg-white rounded-2xl border border-blue-100 shadow-sm cursor-pointer hover:border-blue-300 transition-all">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="upsell_folder" value="15" class="upsell-cb w-5 h-5 text-blue-600 rounded focus:ring-blue-500" onchange="updateUI()">
+                        <div>
+                            <span class="block font-bold text-slate-700">Clear File Folder</span>
+                            <span class="block text-xs text-slate-500">Protect your documents from damage</span>
+                        </div>
+                    </div>
+                    <span class="font-bold text-blue-600">+₹15</span>
+                </label>
             </div>
+        </div>
+
             <button onclick="handleCheckout()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-10 rounded-2xl shadow-xl shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2">
                 <i data-lucide="zap" class="w-5 h-5"></i> Place Order
             </button>
@@ -515,6 +562,14 @@ function calculateTotal() {
         total += (pagesToPrint * f.config.copies * rate);
     });
     
+    // Add Upsells
+    document.querySelectorAll('.upsell-cb').forEach(cb => {
+        if (cb.checked) {
+            total += parseFloat(cb.value);
+        }
+    });
+
+    
     // Animate the price change
     const priceEl = document.getElementById('total-price');
     priceEl.classList.add('scale-110', 'text-indigo-600');
@@ -716,9 +771,20 @@ function handleCheckout() {
 }
 
 async function submitOrder() {
+
     const name = document.getElementById('c_name').value.trim();
     const phone = document.getElementById('c_phone').value.trim();
-    const notes = document.getElementById('c_notes').value.trim();
+    let notes = document.getElementById('c_notes').value.trim();
+    
+    let addons = [];
+    if (document.getElementById('upsell_urgent')?.checked) addons.push("[URGENT]");
+    if (document.getElementById('upsell_spiral')?.checked) addons.push("[SPIRAL BIND]");
+    if (document.getElementById('upsell_folder')?.checked) addons.push("[CLEAR FOLDER]");
+    
+    if (addons.length > 0) {
+        notes = addons.join(" ") + (notes ? " - " + notes : "");
+    }
+
     const totalAmount = calculateTotal();
     
     const overlay = document.getElementById('loading-overlay');
