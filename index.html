@@ -242,14 +242,17 @@
 <!-- ========================================== -->
 <script>
 // Initialize Icons
-lucide.createIcons();
+if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
 
 const SUPABASE_URL = 'https://vukoiwiwokwanonntfhg.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1a29pd2l3b2t3YW5vbm50ZmhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMTM3NTAsImV4cCI6MjEwNjc4OTc1MH0.WPDadfj_WNsX6wYirHxNAjU5sSJE0jiycJWToLPOrcQ';
 let supabaseClient;
 try {
+    if (!window.supabase) throw new Error("Supabase CDN blocked by browser");
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } catch (e) {
+    console.error(e);
+    alert("FATAL ERROR: Your browser is blocking external scripts (CDN). Please disable your ad-blocker/shields for this site or the app will not work.");
     showError("Connection Failed", "Failed to initialize database connection. Please check your network.");
 }
 
@@ -278,13 +281,13 @@ async function initializeTenant() {
         
         if (!shopData) {
             document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center bg-slate-50"><div class="text-center p-8 bg-white rounded-3xl shadow-xl max-w-md"><i data-lucide="ghost" class="w-16 h-16 text-slate-300 mx-auto mb-4"></i><h1 class="text-2xl font-bold text-slate-800 mb-2">404 - Shop Not Found</h1><p class="text-slate-500">The print shop at '${subdomain}' does not exist on our platform.</p></div></div>`;
-            lucide.createIcons();
+            if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
             return;
         }
         
         if (shopData.is_active === false) {
             document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center bg-slate-50"><div class="text-center p-8 bg-white rounded-3xl shadow-xl max-w-md"><i data-lucide="shield-alert" class="w-16 h-16 text-red-500 mx-auto mb-4"></i><h1 class="text-2xl font-bold text-slate-800 mb-2">Shop Suspended</h1><p class="text-slate-500">This shop has been manually suspended.</p></div></div>`;
-            lucide.createIcons();
+            if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
             return;
         }
         
@@ -295,7 +298,7 @@ async function initializeTenant() {
             
             if (currentDate > gracePeriodEnd) {
                 document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center bg-slate-50"><div class="text-center p-8 bg-white rounded-3xl shadow-xl max-w-md"><i data-lucide="lock" class="w-16 h-16 text-red-500 mx-auto mb-4"></i><h1 class="text-2xl font-bold text-slate-800 mb-2">Service Unavailable</h1><p class="text-slate-500">This shop's SaaS subscription expired 3 days ago. The system has automatically locked the terminal.</p></div></div>`;
-                lucide.createIcons();
+                if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
                 return;
             }
         }
@@ -322,7 +325,7 @@ async function initializeTenant() {
             iconWrap.className = "w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shadow-lg border-4 border-white fade-in";
             iconWrap.innerHTML = '<i data-lucide="printer" class="w-10 h-10"></i>';
             document.getElementById('shop-header-container').prepend(iconWrap);
-            lucide.createIcons();
+            if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
         }
 
         const locEl = document.getElementById('shop-location');
@@ -331,7 +334,7 @@ async function initializeTenant() {
         } else {
             locEl.innerHTML = `<i data-lucide="printer" class="w-4 h-4"></i> <span>Fast, secure local printing</span>`;
         }
-        lucide.createIcons();
+        if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
 
         // Fetch Settings
         const { data: settingsData } = await supabaseClient.from('printhub_settings').select('price_bw, price_color, is_accepting_orders, offer_banner').eq('shop_id', currentShopId).single();
@@ -520,7 +523,7 @@ function renderFileList() {
         </div>`;
         listEl.insertAdjacentHTML('beforeend', html);
     });
-    lucide.createIcons();
+    if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
 }
 
 function updateConfig(id, key, value) {
@@ -653,10 +656,10 @@ async function openVisualSlicer(fileId) {
                 page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
             });
         }
-        lucide.createIcons();
+        if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
     } catch (e) {
         grid.innerHTML = '<div class="col-span-full text-center text-red-500 p-8 font-bold"><i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-2"></i> Failed to render PDF preview.</div>';
-        lucide.createIcons();
+        if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
     }
 }
 
