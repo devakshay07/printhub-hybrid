@@ -84,21 +84,13 @@
 </div>
 
 
-    <div id="debug-log" class="fixed bottom-0 right-0 w-full md:w-1/3 bg-slate-900 text-green-400 font-mono text-xs p-4 h-48 overflow-y-auto z-50 border-t-2 border-slate-700">
-        <div>=== SYSTEM DIAGNOSTICS ===</div>
-    </div>
 
 <script>
     const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16a2l6emFrdXBvcmd6bGplYWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNTY0MzQsImV4cCI6MjEwNjgzMjQzNH0.6s21aw_xhbaAJiNeT5x_qi3sZeDfi68yKflj-3M0Z-o';
     
     function sysLog(msg) {
-        console.log(msg);
-        const logEl = document.getElementById('debug-log');
-        if (logEl) {
-            logEl.innerHTML += `<div>[${new Date().toISOString().split('T')[1].slice(0,-1)}] ${msg}</div>`;
-            logEl.scrollTop = logEl.scrollHeight;
-        }
+        console.log(`[${new Date().toISOString().split('T')[1].slice(0,-1)}] ${msg}`);
     }
     
     sysLog('SYSTEM BOOTING (NATIVE MODE)...');
