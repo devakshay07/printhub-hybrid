@@ -7,10 +7,10 @@
     
     <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="lib/lucide.min.js"></script>
+    <script src="lib/supabase.min.js"></script>
+    <script src="lib/pdf-lib.min.js"></script>
+        <script src="lib/pdf.min.js"></script>
 
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -622,7 +622,7 @@ async function openVisualSlicer(fileId) {
 
     const arrayBuffer = await f.originalFile.arrayBuffer();
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
     
     try {
         currentSlicerPdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
