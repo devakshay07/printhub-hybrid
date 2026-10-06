@@ -6,8 +6,7 @@
     <title>PrintHub Agent Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
+        <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .hide { display: none !important; }
@@ -87,23 +86,7 @@
     </div>
 
 <script>
-    
-window.onerror = function(msg, url, line, col, error) {
-    const logEl = document.getElementById('debug-log');
-    if (logEl) {
-        logEl.innerHTML += ``;
-    }
-    return false;
-};
-window.onunhandledrejection = function(event) {
-    const logEl = document.getElementById('debug-log');
-    if (logEl) {
-        logEl.innerHTML += `<div style="color:red">[PROMISE ERROR] ${event.reason}</div>`;
-    }
-};
-
-const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
-
+    const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16a2l6emFrdXBvcmd6bGplYWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNTY0MzQsImV4cCI6MjEwNjgzMjQzNH0.6s21aw_xhbaAJiNeT5x_qi3sZeDfi68yKflj-3M0Z-o';
     
     function sysLog(msg) {
@@ -114,29 +97,16 @@ const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
             logEl.scrollTop = logEl.scrollHeight;
         }
     }
-
     
-    
-    sysLog('SYSTEM BOOTING...');
-    
-    if (typeof window.supabase === 'undefined') {
-        const errHtml = '';
-        document.getElementById('auth-screen').insertAdjacentHTML('afterbegin', errHtml);
-        sysLog('FATAL: Supabase CDN blocked by client.');
-        throw new Error('Supabase CDN blocked');
-    }
-
-    const supabase = window.supabase.createClient
-(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sysLog('SYSTEM BOOTING (NATIVE MODE)...');
 
     let currentSession = null;
     let shopId = null;
     let refreshInterval = null;
 
     // Initialize UI
-    if(window.lucide) { try { if(window.lucide){try{lucide.createIcons();}catch(e){}} } catch(e){} }
+    if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
 
-    // Elements
     const authScreen = document.getElementById('auth-screen');
     const dashboardScreen = document.getElementById('dashboard-screen');
     const loginForm = document.getElementById('login-form');
@@ -145,20 +115,24 @@ const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
     const emptyState = document.getElementById('empty-state');
     const shopNameEl = document.getElementById('shop-name');
 
-    // Auth state changes
-    supabase.auth.onAuthStateChange((event, session) => {
-        sysLog('AUTH EVENT: ' + event + ' | Session Exists: ' + !!session);
-        currentSession = session;
-        if (session) {
-            authScreen.classList.add('hide');
-            dashboardScreen.classList.remove('hide');
-            loadShopData();
-        } else {
-            authScreen.classList.remove('hide');
-            dashboardScreen.classList.add('hide');
-            if(refreshInterval) clearInterval(refreshInterval);
+    async function supabaseFetch(endpoint, method = 'GET', body = null, useAuth = true) {
+        const headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json'
+        };
+        if (useAuth && currentSession) {
+            headers['Authorization'] = `Bearer ${currentSession.access_token}`;
         }
-    });
+        const options = { method, headers };
+        if (body) options.body = JSON.stringify(body);
+        
+        const res = await fetch(`${SUPABASE_URL}${endpoint}`, options);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || err.error_description || `HTTP ${res.status}`);
+        }
+        return res.json().catch(() => null);
+    }
 
     window.handleLogin = async function(e) {
         if(e) e.preventDefault();
@@ -172,170 +146,93 @@ const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
             btn.innerHTML = 'Authenticating...';
             btn.disabled = true;
 
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            const data = await supabaseFetch('/auth/v1/token?grant_type=password', 'POST', { email, password }, false);
             
-            if (error) {
-                sysLog('AUTH ERROR: ' + error.message);
-                loginError.textContent = error.message;
-                loginError.classList.remove('hidden');
-            } else {
-                sysLog('AUTH SUCCESS: Token received.');
-            }
+            sysLog('AUTH SUCCESS: Token received.');
+            currentSession = data;
+            
+            authScreen.classList.add('hide');
+            dashboardScreen.classList.remove('hide');
+            loadShopData();
             
             btn.innerHTML = oldText;
             btn.disabled = false;
         } catch (err) {
-            loginError.textContent = 'System error: ' + err.message;
+            sysLog('LOGIN FATAL EXCEPTION: ' + err.message);
+            loginError.textContent = "Fatal: " + err.message;
             loginError.classList.remove('hidden');
             const btn = document.getElementById('btn-login-submit');
             btn.innerHTML = 'Authenticate';
             btn.disabled = false;
         }
-        return false;
     };
 
     document.getElementById('btn-logout').addEventListener('click', () => {
-        supabase.auth.signOut();
+        currentSession = null;
+        authScreen.classList.remove('hide');
+        dashboardScreen.classList.add('hide');
+        if(refreshInterval) clearInterval(refreshInterval);
     });
-
-    document.getElementById('btn-sync').addEventListener('click', () => {
-        if(shopId) loadOrders();
-    });
-
-    let shopConfig = { price_bw: 2.0, price_color: 10.0 };
-    let shopStatus = { is_active: true, subscription_expiry: null };
-    let isLockedUi = false;
 
     async function loadShopData() {
-        if (!currentSession) return;
-        const { data, error } = await supabase
-            .from('printhub_shops')
-            .select('id, shop_name, is_active, subscription_expiry')
-            .eq('owner_uid', currentSession.user.id)
-            .single();
-
-        if (error) {
-            console.error(error);
-            shopNameEl.textContent = 'Error loading shop';
-            return;
-        }
-
-        if (data) {
-            shopId = data.id;
-            shopNameEl.textContent = data.shop_name || 'My Print Shop';
-            shopStatus.is_active = data.is_active;
-            shopStatus.subscription_expiry = data.subscription_expiry;
-
-            // Fetch settings
-            const { data: settingsData } = await supabase
-                .from('printhub_settings')
-                .select('price_bw, price_color')
-                .eq('shop_id', shopId)
-                .single();
-            if (settingsData) {
-                shopConfig.price_bw = parseFloat(settingsData.price_bw || 2.0);
-                shopConfig.price_color = parseFloat(settingsData.price_color || 10.0);
+        try {
+            const shops = await supabaseFetch(`/rest/v1/printhub_shops?owner_uid=eq.${currentSession.user.id}&select=id,shop_name`);
+            if (shops && shops.length > 0) {
+                shopId = shops[0].id;
+                shopNameEl.textContent = shops[0].shop_name;
+                sysLog(`Shop locked: ${shopId}`);
+                fetchOrders();
+                refreshInterval = setInterval(fetchOrders, 5000);
+            } else {
+                sysLog('No shop found for this user.');
+                alert('No shop linked to this account.');
             }
-            
-            checkLockStatus();
-            loadOrders();
-            // Start polling loop
-            if(refreshInterval) clearInterval(refreshInterval);
-            refreshInterval = setInterval(loadOrders, 5000);
-        } else {
-            shopNameEl.textContent = 'No shop found for this account.';
+        } catch (e) {
+            sysLog('Error loading shop: ' + e.message);
         }
     }
 
-    function checkLockStatus() {
-        const lockContainer = document.getElementById('lock-container');
-        if (!lockContainer) return;
-        lockContainer.innerHTML = '';
-        
-        let daysLeft = 999;
-        isLockedUi = false;
-        let inGracePeriod = false;
-
-        if (shopStatus.is_active === false) {
-            isLockedUi = true;
-        } else if (shopStatus.subscription_expiry) {
-            const expiryDate = new Date(shopStatus.subscription_expiry);
-            const now = new Date();
-            const diff = expiryDate - now;
-            daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
-
-            if (daysLeft < 0) {
-                inGracePeriod = true;
-                if (daysLeft < -3) {
-                    isLockedUi = true;
-                }
-            }
-        }
-
-        if (isLockedUi) {
-            lockContainer.innerHTML = `
-            <div class="bg-red-50 border-2 border-red-500 rounded-3xl p-6 sm:p-8 mb-8 shadow-lg shadow-red-500/10 text-center animate-pulse">
-                <i data-lucide="shield-alert" class="w-16 h-16 text-red-500 mx-auto mb-4"></i>
-                <h1 class="text-3xl font-extrabold text-red-700 mb-2 tracking-tight uppercase">Subscription Expired / Suspended</h1>
-                <p class="text-lg font-bold text-red-800 mb-1">Your PrintHub SaaS account is inactive.</p>
-                <p class="text-sm text-red-600 font-medium">All print jobs are currently paused. Contact admin.</p>
-            </div>`;
-        } else if (inGracePeriod) {
-            lockContainer.innerHTML = `
-            <div class="bg-amber-50 border-2 border-amber-400 rounded-3xl p-6 mb-8 shadow-lg shadow-amber-500/10">
-                <div class="flex items-center gap-4 mb-3">
-                    <div class="bg-amber-100 p-3 rounded-2xl"><i data-lucide="alert-triangle" class="w-8 h-8 text-amber-600"></i></div>
-                    <div>
-                        <h2 class="text-xl font-bold text-amber-800 uppercase tracking-tight">Grace Period Active</h2>
-                        <p class="text-amber-700 font-medium text-sm">Pay your platform rent immediately. Automatic killswitch engages in ${daysLeft + 3} days.</p>
-                    </div>
-                </div>
-            </div>`;
-        } else {
-            lockContainer.innerHTML = `
-            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-8 flex justify-between items-center shadow-sm">
-                <div class="flex items-center gap-2 text-emerald-700 font-semibold text-sm">
-                    <i data-lucide="check-circle-2" class="w-5 h-5"></i> System Online
-                </div>
-                ${daysLeft !== 999 ? `<span class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-lg text-xs font-bold">${daysLeft} Days Remaining</span>` : ''}
-            </div>`;
-        }
-        if(window.lucide) { try { if(window.lucide){try{lucide.createIcons();}catch(e){}} } catch(e){} }
-    }
-
-    async function loadOrders() {
+    async function fetchOrders() {
         if (!shopId) return;
-        const { data: orders, error } = await supabase
-            .from('printhub_orders')
-            .select('*, printhub_files(*)')
-            .eq('shop_id', shopId)
-            .order('created_at', { ascending: false });
-
-        if (error) {
-            console.error('Error fetching orders', error);
-            return;
+        try {
+            const orders = await supabaseFetch(`/rest/v1/printhub_orders?shop_id=eq.${shopId}&order=created_at.desc`);
+            renderOrders(orders || []);
+        } catch (e) {
+            sysLog('Queue fetch error: ' + e.message);
         }
-
-        renderOrders(orders);
     }
 
-    async function updateOrderStatus(orderId, newStatus) {
-        await supabase.from('printhub_orders').update({ status: newStatus }).eq('id', orderId);
-        loadOrders();
-    }
-
-    async function verifyOtp(orderId, inputOtp) {
-        const { data, error } = await supabase.from('printhub_orders').select('otp').eq('id', orderId).single();
-        if (data && data.otp === inputOtp) {
-            await supabase.from('printhub_orders').update({ otp_verified: true }).eq('id', orderId);
-            loadOrders();
-            return true;
+    window.updateOrderStatus = async function(orderId, newStatus) {
+        try {
+            await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}`, 'PATCH', { status: newStatus });
+            sysLog(`Order ${orderId.substring(0,8)} marked as ${newStatus}`);
+            fetchOrders();
+        } catch (e) {
+            sysLog('Failed to update status: ' + e.message);
+            alert('Failed to update status');
         }
-        return false;
     }
 
     window.handleMarkPaid = function(orderId) {
         updateOrderStatus(orderId, 'Paid');
+    }
+
+    window.verifyOtp = async function(orderId, otpInput) {
+        try {
+            const orders = await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}&select=otp`);
+            if (orders && orders.length > 0) {
+                if (orders[0].otp === otpInput) {
+                    await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}`, 'PATCH', { otp_verified: true });
+                    sysLog(`OTP Verified for ${orderId.substring(0,8)}`);
+                    fetchOrders();
+                    return true;
+                }
+            }
+            return false;
+        } catch (e) {
+            sysLog('OTP check failed: ' + e.message);
+            return false;
+        }
     }
 
     window.handleVerifyOtp = async function(e, orderId) {
@@ -364,174 +261,86 @@ const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
 
     function renderOrders(orders) {
         if (!orders || orders.length === 0) {
-            emptyState.classList.remove('hide');
+            emptyState.classList.remove('hidden');
             ordersContainer.innerHTML = '';
             return;
         }
-        emptyState.classList.add('hide');
-
+        
+        emptyState.classList.add('hidden');
         let html = '';
+        
         orders.forEach(order => {
-            const isUrgent = order.notes && order.notes.includes('[URGENT]');
-            const isPrinted = order.status === 'Printed';
-            const isPending = order.status === 'Pending';
-            const isPaid = order.status === 'Paid';
-            const isVerified = order.otp_verified;
-            
-            // Format time
-            const d = new Date(order.created_at);
-            const timeStr = d.toLocaleString();
-
-            let statusBadge = '';
-            let borderClass = 'border-slate-200';
-            
-            if (isPending) {
-                statusBadge = '<span class="bg-amber-50 text-amber-600 px-3 py-1 rounded-lg text-xs font-bold border border-amber-200">AWAITING PAYMENT</span>';
-                borderClass = 'border-amber-200';
-            } else if (isPaid && !isVerified) {
-                statusBadge = '<span class="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-xs font-bold border border-blue-200">PAID - AWAITING PIN</span>';
-                borderClass = 'border-blue-200';
-            } else if (isPaid && isVerified) {
-                statusBadge = '<span class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-xs font-bold border border-indigo-200 animate-pulse">QUEUED FOR PRINTING</span>';
-                borderClass = 'border-indigo-200';
-            } else if (isPrinted) {
-                statusBadge = '<span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold border border-slate-200">COMPLETED</span>';
-            } else {
-                statusBadge = `<span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold border border-slate-200">${order.status.toUpperCase()}</span>`;
-            }
-
-            let urgentHtml = '';
-            
-            // Calculate expected amount
-            let expectedTotal = 0;
-            if (order.printhub_files && order.printhub_files.length > 0) {
-                order.printhub_files.forEach(f => {
-                    const pages = f.pages || 1;
-                    const copies = f.copies || 1;
-                    const rate = (f.color_mode === 'color') ? shopConfig.price_color : shopConfig.price_bw;
-                    expectedTotal += (pages * copies * rate);
-                });
-            }
-            const isTampered = order.total_amount && Math.abs(parseFloat(order.total_amount) - expectedTotal) > 0.1;
-
-            if (isTampered) {
-                urgentHtml += `
-                <div class="mb-4 bg-red-50 border-2 border-red-500 rounded-2xl p-4 text-red-700 flex items-start gap-3 shadow-sm">
-                    <i data-lucide="shield-alert" class="w-6 h-6 text-red-600 shrink-0"></i>
-                    <div>
-                        <strong class="block text-red-800 uppercase tracking-tight font-bold mb-1">Fraud Alert: Price Forged</strong>
-                        <span class="text-sm font-medium">The customer maliciously manipulated the browser to pay ₹${parseFloat(order.total_amount).toFixed(2)}. The actual cost is ₹${expectedTotal.toFixed(2)}. Do not print this unless they pay the difference!</span>
-                    </div>
-                </div>`;
-            }
-
-            if (isUrgent) {
-                urgentHtml += `
-                <div class="mb-4 bg-red-50 border-2 border-red-500 rounded-xl p-3 flex items-start gap-2 animate-pulse shadow-lg shadow-red-500/20">
-                    <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600 mt-0.5 font-bold"></i>
-                    <span class="font-black text-red-700 text-lg uppercase tracking-wider">URGENT: ${order.notes.replace('[URGENT]', '').trim()}</span>
-                </div>`;
-            } else if (order.notes) {
-                urgentHtml += `
-                <div class="mb-4 bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-start gap-2">
-                    <i data-lucide="info" class="w-4 h-4 text-slate-400 mt-0.5"></i>
-                    <span class="font-medium text-sm text-slate-700">${order.notes}</span>
-                </div>`;
-            }
-
-            let actionHtml = '';
-            if (isPending && !isLockedUi) {
-                actionHtml = `
-                <button onclick="handleMarkPaid('${order.id}')" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2">
-                    <i data-lucide="coins" class="w-4 h-4"></i> Mark as Paid
-                </button>`;
-            }
-
+            const isUrgent = order.is_urgent;
+            const statusColor = order.status === 'Pending' ? 'bg-amber-100 text-amber-700 border-amber-200' : 
+                              (order.status === 'Paid' ? 'bg-blue-100 text-blue-700 border-blue-200' : 
+                              'bg-green-100 text-green-700 border-green-200');
+                              
             let otpSection = '';
-            if (isLockedUi) {
-                otpSection = `
-                <div class="bg-red-50 text-red-600 p-4 rounded-2xl font-bold text-center text-sm border border-red-200 mt-4">
-                    <i data-lucide="lock" class="w-5 h-5 inline-block mb-1"></i><br>PAY SUBSCRIPTION TO UNLOCK DOCUMENTS
-                </div>`;
-            } else if (!isVerified && (isPaid || isPending)) {
-                otpSection = `
-                <div class="bg-slate-900 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-slate-800 mt-4 relative overflow-hidden">
-                    <div class="relative z-10 flex items-center gap-4">
-                        <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700"><i data-lucide="key" class="w-6 h-6 text-blue-400"></i></div>
-                        <div>
-                            <h3 class="text-white font-bold text-base">Secure Document</h3>
-                            <p class="text-slate-400 text-xs">Enter 4-digit PIN to unlock files.</p>
+            if (order.status === 'Paid') {
+                if (!order.otp_verified) {
+                    otpSection = `
+                        <form onsubmit="handleVerifyOtp(event, '${order.id}')" class="mt-4 flex gap-2">
+                            <input type="text" maxlength="4" placeholder="Enter 4-digit PIN" required class="flex-1 bg-slate-50 border-2 border-slate-200 rounded-lg px-3 py-2 text-center tracking-widest font-bold text-slate-900 focus:border-blue-600 outline-none transition-colors">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-colors">Verify & Print</button>
+                        </form>
+                    `;
+                } else {
+                    otpSection = `
+                        <div class="mt-4 flex items-center justify-center gap-2 bg-green-50 text-green-700 p-3 rounded-lg border border-green-200 font-bold">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i> PIN Verified - Sent to Printer
                         </div>
+                    `;
+                }
+            } else if (order.status === 'Pending' && order.payment_mode === 'cash') {
+                otpSection = `
+                    <div class="mt-4">
+                        <button onclick="handleMarkPaid('${order.id}')" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="coins" class="w-5 h-5"></i> Mark as Paid (Cash Collected)
+                        </button>
                     </div>
-                    <form class="relative z-10 flex gap-2 w-full sm:w-auto" onsubmit="handleVerifyOtp(event, '${order.id}')">
-                        <input type="text" placeholder="PIN" required maxlength="4" class="w-full sm:w-24 bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-2 text-white font-mono text-center tracking-widest focus:border-blue-500 outline-none placeholder:text-slate-600 transition-colors">
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition-colors shrink-0">Unlock</button>
-                    </div>
-                </div>`;
-            } else if (isVerified && isPaid) {
-                 otpSection = `
-                 <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mt-4 flex items-center gap-3 text-emerald-800">
-                    <div class="bg-emerald-100 p-2 rounded-xl"><i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-600"></i></div>
-                    <div>
-                        <div class="font-bold text-sm">PIN Verified</div>
-                        <div class="text-xs opacity-80">Print Bridge will process this automatically.</div>
-                    </div>
-                 </div>`;
-            } else if (isPrinted) {
-                 otpSection = `
-                 <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 mt-4 flex items-center gap-3 text-slate-600">
-                    <div class="bg-white p-2 border border-slate-200 rounded-xl"><i data-lucide="printer-check" class="w-5 h-5 text-slate-500"></i></div>
-                    <div>
-                        <div class="font-bold text-sm">Successfully Printed</div>
-                        <div class="text-xs opacity-80">Files have been securely wiped from disk.</div>
-                    </div>
-                 </div>`;
+                `;
             }
 
             html += `
-            <div class="bg-white border-2 ${borderClass} rounded-3xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-                <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4 border-b border-slate-100 pb-4">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
+                ${isUrgent ? '<div class="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">URGENT</div>' : ''}
+                
+                <div class="flex justify-between items-start mb-4">
                     <div>
-                        <div class="flex items-center gap-3 mb-1">
-                            <span class="text-lg font-black text-slate-900 tracking-tight uppercase">#${order.id.substring(0,8)}</span>
-                            ${statusBadge}
-                        </div>
-                        <div class="text-xs font-medium text-slate-400 flex items-center gap-1">
-                            <i data-lucide="clock" class="w-3 h-3"></i> ${timeStr}
-                        </div>
+                        <div class="text-xs font-bold text-slate-400 mb-1">ORDER ID</div>
+                        <div class="font-mono text-sm text-slate-900 bg-slate-100 px-2 py-1 rounded-md">#${order.id.substring(0,8)}</div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        ${actionHtml}
+                    <div class="text-right">
+                        <div class="text-xs font-bold text-slate-400 mb-1">STATUS</div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColor}">
+                            ${order.status}
+                        </span>
                     </div>
                 </div>
                 
-                ${urgentHtml}
-
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Customer</div>
-                        <div class="font-bold text-slate-800 text-sm truncate">${order.customer_name || 'N/A'}</div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                        <div class="text-xs font-bold text-slate-400 mb-1">TOTAL AMOUNT</div>
+                        <div class="text-xl font-black text-slate-900">₹${order.total_amount}</div>
                     </div>
-                    <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Phone</div>
-                        <div class="font-bold text-slate-800 text-sm">${order.customer_phone || 'N/A'}</div>
-                    </div>
-                    <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 md:col-span-2">
-                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Order Value</div>
-                        <div class="font-black text-emerald-600 text-lg">₹${parseFloat(order.total_amount).toFixed(2)}</div>
+                    <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                        <div class="text-xs font-bold text-slate-400 mb-1">PAYMENT MODE</div>
+                        <div class="text-sm font-bold text-slate-700 capitalize flex items-center gap-1">
+                            ${order.payment_mode === 'cash' ? '<i data-lucide="banknote" class="w-4 h-4"></i>' : '<i data-lucide="credit-card" class="w-4 h-4"></i>'}
+                            ${order.payment_mode}
+                        </div>
                     </div>
                 </div>
-
+                
                 ${otpSection}
             </div>`;
         });
 
         ordersContainer.innerHTML = html;
-        if(window.lucide) { try { if(window.lucide){try{lucide.createIcons();}catch(e){}} } catch(e){} }
+        if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
     }
 </script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
+<style>
     @keyframes shake {
         0%, 100% { transform: translateX(0); }
         25% { transform: translateX(-5px); }
