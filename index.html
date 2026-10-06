@@ -333,6 +333,33 @@ async function initializeTenant() {
         const locSpan = document.querySelector('#shop-location span');
         if(locSpan) locSpan.textContent = shopData.location || 'HQ';
 
+        // Fetch Settings for Prices and Banner
+        const setRes = await fetch(`${SUPABASE_URL}/rest/v1/printhub_settings?shop_id=eq.${currentShopId}`, {
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
+        });
+        
+        if (setRes.ok) {
+            const setData = await setRes.json();
+            if (setData && setData.length > 0) {
+                const settings = setData[0];
+                if (settings.price_bw) RATES.bw = parseFloat(settings.price_bw);
+                if (settings.price_color) RATES.color = parseFloat(settings.price_color);
+                
+                if (settings.offer_banner && settings.offer_banner.trim() !== '') {
+                    const banner = document.getElementById('offer-banner');
+                    const text = document.getElementById('offer-text');
+                    if (banner && text) {
+                        text.textContent = settings.offer_banner;
+                        banner.classList.remove('hidden');
+                        banner.classList.add('flex');
+                    }
+                }
+            }
+        }
+
         const overlay = document.getElementById('loading-overlay');
         overlay.style.opacity = '0';
         setTimeout(() => overlay.classList.add('hidden'), 300);
