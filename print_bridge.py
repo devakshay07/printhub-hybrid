@@ -132,8 +132,7 @@ def process_order(order):
     all_printed = True
     for file_record in files_res.data:
         storage_path = file_record['storage_path']
-        download_url = supabase.storage.from_('print-files').get_public_url(storage_path)
-        local_filename = os.path.join(TEMP_DIR, os.path.basename(storage_path))
+                local_filename = os.path.join(TEMP_DIR, os.path.basename(storage_path))
         
         # Security: Prevent printing malware or unsupported types
         ext = os.path.splitext(local_filename)[1].lower()
@@ -142,28 +141,17 @@ def process_order(order):
             all_printed = False
             continue
 
-        # Download
+        # Download (Authenticated)
         logger.info(f"Downloading {storage_path}...")
         try:
-            r = requests.get(download_url, stream=True, timeout=30)
-            if r.status_code == 200:
-                bytes_downloaded = 0
-                MAX_BYTES = 50 * 1024 * 1024 # 50 MB limit
-                with open(local_filename, 'wb') as f:
-                    for chunk in r.iter_content(1024):
-                        bytes_downloaded += len(chunk)
-                        if bytes_downloaded > MAX_BYTES:
-                            os.remove(local_filename)
-                            logger.error(f"File {storage_path} exceeds 50MB limit. DoS blocked.")
-                            all_printed = False
-                            break
-                        f.write(chunk)
-                if not all_printed: # Tripped the size limit
-                    continue
-            else:
-                logger.error(f"Failed to download {storage_path}: HTTP {r.status_code}")
+            # We use the native supabase python client which uses the auth session
+            file_bytes = supabase.storage.from_('print-files').download(storage_path)
+            if len(file_bytes) > 50 * 1024 * 1024:
+                logger.error(f"File {storage_path} exceeds 50MB limit. DoS blocked.")
                 all_printed = False
                 continue
+            with open(local_filename, 'wb') as f:
+                f.write(file_bytes)
         except Exception as e:
             logger.error(f"Network error downloading {storage_path}: {e}")
             all_printed = False
