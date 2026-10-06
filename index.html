@@ -165,9 +165,19 @@
             </div>
         </div>
 
-            <button onclick="handleCheckout()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-10 rounded-2xl shadow-xl shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2">
-                <i data-lucide="zap" class="w-5 h-5"></i> Place Order
-            </button>
+        </div>
+        
+        <!-- BOTTOM CHECKOUT BAR -->
+        <div class="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-40 pb-safe">
+            <div class="max-w-2xl mx-auto flex items-center justify-between">
+                <div class="flex flex-col">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Sum</span>
+                    <span id="total-price" class="text-2xl font-black text-slate-900 transition-all duration-200">₹0.00</span>
+                </div>
+                <button onclick="handleCheckout()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-blue-600/30 transition-all active:scale-95 flex items-center justify-center gap-2">
+                    <i data-lucide="zap" class="w-5 h-5"></i> Place Order
+                </button>
+            </div>
         </div>
     </div>
 
