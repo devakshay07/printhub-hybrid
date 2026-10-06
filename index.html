@@ -877,12 +877,11 @@ async function submitOrder() {
             // Insert File Metadata using Native Fetch
             const filePayload = {
                 order_id: orderId,
-                file_name: f.name,
+                filename: f.name,
                 storage_path: storagePath,
                 pages: finalPages,
                 copies: parseInt(f.config.copies),
                 color_mode: f.config.colorMode,
-                sides: f.config.sides,
                 page_range: f.config.pageRange || 'All'
             };
 
