@@ -55,7 +55,7 @@ CREATE TABLE public.printhub_files (
 -- 2. Storage Bucket
 -- ==============================================================================
 INSERT INTO storage.buckets (id, name, public) 
-VALUES ('print_jobs', 'print_jobs', false)
+VALUES ('print-files', 'print-files', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- ==============================================================================
@@ -105,8 +105,8 @@ CREATE POLICY "Agent File Select" ON public.printhub_files FOR SELECT USING (
 
 -- Storage Policies: Public can upload files, ONLY authenticated agents can read them
 CREATE POLICY "Public Uploads" ON storage.objects FOR INSERT WITH CHECK (
-    bucket_id = 'print_jobs'
+    bucket_id = 'print-files'
 );
 CREATE POLICY "Agent Reads" ON storage.objects FOR SELECT USING (
-    bucket_id = 'print_jobs' AND auth.role() = 'authenticated'
+    bucket_id = 'print-files' AND auth.role() = 'authenticated'
 );
