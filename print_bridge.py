@@ -132,7 +132,7 @@ def process_order(order):
     all_printed = True
     for file_record in files_res.data:
         storage_path = file_record['storage_path']
-                local_filename = os.path.join(TEMP_DIR, os.path.basename(storage_path))
+        local_filename = os.path.join(TEMP_DIR, os.path.basename(storage_path))
         
         # Security: Prevent printing malware or unsupported types
         ext = os.path.splitext(local_filename)[1].lower()
