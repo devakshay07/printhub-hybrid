@@ -57,8 +57,8 @@ logger = logging.getLogger('PrintBridge')
 
 load_dotenv()
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vukoiwiwokwanonntfhg.supabase.co")
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1a29pd2l3b2t3YW5vbm50ZmhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMTM3NTAsImV4cCI6MjEwNjc4OTc1MH0.WPDadfj_WNsX6wYirHxNAjU5sSJE0jiycJWToLPOrcQ")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://mzkizzakuporgzljealz.supabase.co")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16a2l6emFrdXBvcmd6bGplYWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNTY0MzQsImV4cCI6MjEwNjgzMjQzNH0.6s21aw_xhbaAJiNeT5x_qi3sZeDfi68yKflj-3M0Z-o")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
