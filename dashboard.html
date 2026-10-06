@@ -6,7 +6,8 @@
     <title>PrintHub Agent Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-        <style>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .hide { display: none !important; }
@@ -90,7 +91,7 @@
 window.onerror = function(msg, url, line, col, error) {
     const logEl = document.getElementById('debug-log');
     if (logEl) {
-        logEl.innerHTML += `<div style="color:red">[FATAL ERROR] ${msg} at line ${line}</div>`;
+        logEl.innerHTML += ``;
     }
     return false;
 };
@@ -119,7 +120,7 @@ const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
     sysLog('SYSTEM BOOTING...');
     
     if (typeof window.supabase === 'undefined') {
-        const errHtml = '<div style="color:red; font-size:16px; padding:20px; text-align:center; background:#fee2e2; border:2px solid #ef4444; border-radius:12px; margin-bottom:20px;"><b>FATAL ERROR:</b> Your browser or ad-blocker is blocking our database connection (jsdelivr). Please disable your ad-blocker or brave shields and refresh the page.</div>';
+        const errHtml = '';
         document.getElementById('auth-screen').insertAdjacentHTML('afterbegin', errHtml);
         sysLog('FATAL: Supabase CDN blocked by client.');
         throw new Error('Supabase CDN blocked');
@@ -529,7 +530,8 @@ const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
         if(window.lucide) { try { if(window.lucide){try{lucide.createIcons();}catch(e){}} } catch(e){} }
     }
 </script>
-<style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
     @keyframes shake {
         0%, 100% { transform: translateX(0); }
         25% { transform: translateX(-5px); }

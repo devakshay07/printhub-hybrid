@@ -1,30 +1,18 @@
-# PRINTHub - Cloud-to-Ground Print Service
+# PrintHub (Hybrid Architecture)
 
-A hybrid architecture for a modern printing shop. Accepts orders and files globally via a Vercel-hosted frontend, stores them securely in Supabase, and uses a local Python agent to route print jobs directly to physical printers.
+PrintHub is a zero-trace, fully-decoupled SaaS platform for print shops.
 
 ## Architecture
 
-1. **Frontend (`index.html`)**: Deployed on Vercel or any static host. Users upload PDFs and images, configure print settings (Copies, Color, Duplex, Page Ranges), and submit. Local PDF slicing is handled via `pdf-lib` to minimize upload bandwidth.
-2. **Database (Supabase)**: Stores the `orders`, `order_files`, and actual file payloads in a secure `print-files` bucket.
-3. **Shop Agent (`shop_agent.py`)**: Runs locally at the print shop on a Linux/macOS machine. Polls Supabase for new orders, provides a local dashboard to manage jobs, and uses the `lp` command to dynamically send configured files to the local printer.
+1. **Customer Storefront (`index.html`)**: A lightweight, CDN-powered web app that allows customers to upload PDFs, calculates pricing, generates secure PINs, and pushes jobs to the cloud. Hosted on Vercel.
+2. **Shop Dashboard (`dashboard.html`)**: A secure, real-time agent dashboard where shop owners can view incoming orders, verify PINs, and manage their shop. Hosted on Vercel.
+3. **Print Bridge (`print_bridge.py` / `PrintBridge.exe`)**: A headless local agent that runs on the physical print shop computer. It authenticates with the cloud, downloads paid/verified print jobs, streams them directly to the local OS printer spooler, and securely wipes the files from the disk.
 
 ## Setup Instructions
 
-### 1. Supabase Setup
-- Create a new Supabase project.
-- Open the SQL Editor and paste the contents of `schema.sql` to generate your tables, policies, and storage buckets.
+1. **Database**: Run `printhub_schema.sql` in your Supabase SQL Editor.
+2. **Frontend**: Deploy the repository to Vercel. (No build step required).
+3. **Local Print Agent**: Download the `PrintBridge.exe` from GitHub Actions, or run `python print_bridge.py`. Enter your Shop Email and Password to authenticate the node.
 
-### 2. Frontend Setup
-- Open `index.html`.
-- Replace `YOUR_SUPABASE_URL` and `YOUR_SUPABASE_ANON_KEY` with your project's keys.
-- Deploy the folder to Vercel/Netlify/GitHub Pages.
-
-### 3. Local Shop Agent
-- Install dependencies: `pip install -r requirements.txt`
-- Export your Supabase keys to your environment:
-  ```bash
-  export SUPABASE_URL="your-url"
-  export SUPABASE_ANON_KEY="your-key"
-  ```
-- Run the agent: `python3 shop_agent.py`
-- Open `http://localhost:5000` to access the shopkeeper dashboard.
+## Zero-Trace Privacy Guarantee
+All files are streamed directly from Supabase to the local print spooler and are securely deleted from the local disk the moment the print job is successfully queued.
