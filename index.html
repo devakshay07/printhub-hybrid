@@ -332,6 +332,10 @@ async function initializeTenant() {
         document.getElementById('shop-title').textContent = shopData.shop_name;
         const locSpan = document.querySelector('#shop-location span');
         if(locSpan) locSpan.textContent = shopData.location || 'HQ';
+
+        const overlay = document.getElementById('loading-overlay');
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.classList.add('hidden'), 300);
         
     } catch (e) {
         console.error(e);
