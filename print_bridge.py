@@ -216,12 +216,26 @@ def main():
     
     shop_id = shop['id']
     
-    # Authenticate HWID
+    # Strict HWID Locking
     try:
-        supabase.table('printhub_shops').update({'active_device_id': HWID}).eq('id', shop_id).execute()
-        logger.info(f"Registered Hardware ID: {HWID}")
+        # Check existing HWID
+        shop_info = supabase.table('printhub_shops').select('active_device_id').eq('id', shop_id).execute()
+        current_hwid = shop_info.data[0].get('active_device_id')
+        
+        if not current_hwid:
+            # First time login on this shop - lock it to this device
+            supabase.table('printhub_shops').update({'active_device_id': HWID}).eq('id', shop_id).execute()
+            logger.info(f"Shop locked to this Hardware ID: {HWID}")
+        elif current_hwid != HWID:
+            # Device mismatch! Reject login.
+            logger.error(f"SECURITY ALERT: This account is already locked to another computer.")
+            logger.error(f"Please contact support to reset your Hardware ID if you changed devices.")
+            return
+        else:
+            logger.info(f"Hardware ID matched. Access granted.")
+            
     except Exception as e:
-        logger.error(f"Failed to register HWID: {e}")
+        logger.error(f"Failed to verify HWID: {e}")
         return
         
     logger.info(f"Bridge Active for Shop ID: {shop_id}")
