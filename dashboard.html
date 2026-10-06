@@ -132,7 +132,7 @@
         const res = await fetch(`${SUPABASE_URL}${endpoint}`, options);
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err.message || err.error_description || `HTTP ${res.status}`);
+            throw new Error(err.message || err.error_description || err.msg || `HTTP ${res.status}`);
         }
         return res.json().catch(() => null);
     }
