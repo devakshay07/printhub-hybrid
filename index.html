@@ -320,16 +320,18 @@ async function initializeTenant() {
         const skeleton = document.getElementById('header-skeleton-logo');
         if (skeleton) skeleton.remove();
 
-        const logoContainer = document.getElementById('header-logo-container');
+        const headerContainer = document.getElementById('shop-header-container');
+        let logoHtml = '';
         if (shopData.logo_url) {
-            logoContainer.innerHTML = `<img src="${shopData.logo_url}" class="h-8 md:h-10 object-contain" alt="${shopData.shop_name}">`;
+            logoHtml = `<img src="${shopData.logo_url}" class="h-16 w-16 md:h-20 md:w-20 object-contain rounded-xl shadow-sm" alt="${shopData.shop_name}">`;
         } else {
-            logoContainer.innerHTML = `<div class="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-black text-xl">${shopData.shop_name.charAt(0)}</div>`;
+            logoHtml = `<div class="h-16 w-16 md:h-20 md:w-20 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-black text-3xl">${shopData.shop_name.charAt(0)}</div>`;
         }
+        headerContainer.insertAdjacentHTML('afterbegin', logoHtml);
 
-        document.getElementById('header-shop-name').textContent = shopData.shop_name;
-        document.getElementById('header-shop-location').textContent = shopData.location || 'HQ';
-        document.getElementById('main-shop-name').textContent = `Welcome to ${shopData.shop_name}`;
+        document.getElementById('shop-title').textContent = shopData.shop_name;
+        const locSpan = document.querySelector('#shop-location span');
+        if(locSpan) locSpan.textContent = shopData.location || 'HQ';
         
     } catch (e) {
         console.error(e);
