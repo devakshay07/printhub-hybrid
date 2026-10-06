@@ -8,8 +8,7 @@
     <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="lib/lucide.min.js?v=2"></script>
-    <script src="lib/supabase.min.js?v=2"></script>
-    <script src="lib/pdf-lib.min.js?v=2"></script>
+        <script src="lib/pdf-lib.min.js?v=2"></script>
         <script src="lib/pdf.min.js?v=2"></script>
 
     <!-- Google Fonts: Inter -->
@@ -256,14 +255,7 @@ if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
 
 const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16a2l6emFrdXBvcmd6bGplYWx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNTY0MzQsImV4cCI6MjEwNjgzMjQzNH0.6s21aw_xhbaAJiNeT5x_qi3sZeDfi68yKflj-3M0Z-o';
-let supabaseClient;
-try {
-    if (!window.supabase) throw new Error("Supabase CDN blocked by browser");
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-} catch (e) {
-    console.error(e);
-    showError("Connection Failed", "Failed to initialize database connection. Please check your network.");
-}
+
 
 let filesData = [];
 let RATES = { bw: 2.0, color: 10.0 }; 
@@ -277,7 +269,6 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initializeTenant() {
-    if (!supabaseClient) return;
     try {
         let hostname = window.location.hostname;
         let subdomain = 'demo';
@@ -287,7 +278,16 @@ async function initializeTenant() {
             if (hostname.includes('vercel.app')) subdomain = 'demo';
         }
 
-        const { data: shopData, error: shopErr } = await supabaseClient.from('printhub_shops').select('id, shop_name, is_active, subscription_expiry, location, logo_url').eq('subdomain', subdomain).single();
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/printhub_shops?select=id,shop_name,is_active,subscription_expiry,location,logo_url&subdomain=eq.${subdomain}`, {
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
+        });
+        
+        if (!res.ok) throw new Error("Fetch failed");
+        const data = await res.json();
+        const shopData = data.length > 0 ? data[0] : null;
         
         if (!shopData) {
             document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center bg-slate-50"><div class="text-center p-8 bg-white rounded-3xl shadow-xl max-w-md"><i data-lucide="ghost" class="w-16 h-16 text-slate-300 mx-auto mb-4"></i><h1 class="text-2xl font-bold text-slate-800 mb-2">404 - Shop Not Found</h1><p class="text-slate-500">The print shop at '${subdomain}' does not exist on our platform.</p></div></div>`;
@@ -318,54 +318,22 @@ async function initializeTenant() {
         
         // Remove skeleton loader
         const skeleton = document.getElementById('header-skeleton-logo');
-        if(skeleton) skeleton.remove();
-        
-        // Inject Branding
-        const titleEl = document.getElementById('shop-title');
-        titleEl.textContent = currentShopName;
-        document.title = currentShopName + " - PrintHub SaaS";
-        
+        if (skeleton) skeleton.remove();
+
+        const logoContainer = document.getElementById('header-logo-container');
         if (shopData.logo_url) {
-            const img = document.createElement('img');
-            img.src = shopData.logo_url;
-            img.className = "w-20 h-20 object-cover rounded-full shadow-lg border-4 border-white fade-in";
-            document.getElementById('shop-header-container').prepend(img);
+            logoContainer.innerHTML = `<img src="${shopData.logo_url}" class="h-8 md:h-10 object-contain" alt="${shopData.shop_name}">`;
         } else {
-            const iconWrap = document.createElement('div');
-            iconWrap.className = "w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shadow-lg border-4 border-white fade-in";
-            iconWrap.innerHTML = '<i data-lucide="printer" class="w-10 h-10"></i>';
-            document.getElementById('shop-header-container').prepend(iconWrap);
-            if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
+            logoContainer.innerHTML = `<div class="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-black text-xl">${shopData.shop_name.charAt(0)}</div>`;
         }
 
-        const locEl = document.getElementById('shop-location');
-        if (shopData.location) {
-            locEl.innerHTML = `<i data-lucide="map-pin" class="w-4 h-4"></i> <span>${shopData.location}</span>`;
-        } else {
-            locEl.innerHTML = `<i data-lucide="printer" class="w-4 h-4"></i> <span>Fast, secure local printing</span>`;
-        }
-        if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
-
-        // Fetch Settings
-        const { data: settingsData } = await supabaseClient.from('printhub_settings').select('price_bw, price_color, is_accepting_orders, offer_banner').eq('shop_id', currentShopId).single();
+        document.getElementById('header-shop-name').textContent = shopData.shop_name;
+        document.getElementById('header-shop-location').textContent = shopData.location || 'HQ';
+        document.getElementById('main-shop-name').textContent = `Welcome to ${shopData.shop_name}`;
         
-        if (settingsData) {
-            RATES.bw = parseFloat(settingsData.price_bw) || 2.0;
-            RATES.color = parseFloat(settingsData.price_color) || 10.0;
-            SHOP_ONLINE = settingsData.is_accepting_orders;
-            
-            if (settingsData.offer_banner) {
-                const banner = document.getElementById('offer-banner');
-                document.getElementById('offer-text').textContent = settingsData.offer_banner;
-                banner.classList.remove('hidden');
-            }
-        }
-
-        document.getElementById('loading-overlay').style.opacity = '0';
-        setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 300);
-
     } catch (e) {
-        showError("Initialization Error", e.message);
+        console.error(e);
+        showError("Connection Failed", "Failed to load shop details. Please check your network.");
     }
 }
 
@@ -791,6 +759,7 @@ function handleCheckout() {
 }
 
 async function submitOrder() {
+    if (filesData.length === 0) return alert("Please add at least one document");
 
     const name = document.getElementById('c_name').value.trim();
     const phone = document.getElementById('c_phone').value.trim();
@@ -834,22 +803,36 @@ async function submitOrder() {
         };
         const orderId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : uuidv4();
 
-        const { error: orderErr } = await supabaseClient
-            .from('printhub_orders')
-            .insert([{ 
-                id: orderId,
-                shop_id: currentShopId,
-                customer_name: name, 
-                customer_phone: phone,
-                customer_email: "no-reply@printhub.local", 
-                notes: notes, 
-                total_amount: totalAmount, 
-                otp: otpCode,
-                status: initialStatus
-            }]);
-            
-        if (orderErr) throw new Error("Connection failed: " + (orderErr.message || JSON.stringify(orderErr)));
+        // 1. Insert Order using Native Fetch
+        const orderPayload = {
+            id: orderId,
+            shop_id: currentShopId,
+            customer_name: name,
+            customer_phone: phone,
+            customer_email: "no-reply@printhub.local",
+            notes: notes,
+            total_amount: totalAmount,
+            otp: otpCode,
+            status: initialStatus
+        };
 
+        const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/printhub_orders`, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(orderPayload)
+        });
+
+        if (!orderRes.ok) {
+            const errText = await orderRes.text();
+            throw new Error(`Order insertion failed: ${orderRes.status} ${errText}`);
+        }
+
+        // 2. Upload Files
         for (let i = 0; i < filesData.length; i++) {
             const f = filesData[i];
             overlayTitle.textContent = `Uploading File ${i+1} of ${filesData.length}`;
@@ -869,10 +852,24 @@ async function submitOrder() {
             overlayDesc.textContent = `Transferring securely...`;
             const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
             
-            const { error: uploadErr } = await supabaseClient.storage.from('print-files').upload(storagePath, finalBlob);
-            if (uploadErr) throw new Error("Upload Failed: " + (uploadErr.message || JSON.stringify(uploadErr)));
+            // Storage Upload using Native Fetch
+            const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/print-files/${storagePath}`, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    'Content-Type': finalBlob.type || 'application/octet-stream'
+                },
+                body: finalBlob
+            });
+
+            if (!uploadRes.ok) {
+                const errText = await uploadRes.text();
+                throw new Error(`Upload Failed: ${uploadRes.status} ${errText}`);
+            }
             
-            const { error: fileDbErr } = await supabaseClient.from('printhub_files').insert([{
+            // Insert File Metadata using Native Fetch
+            const filePayload = {
                 order_id: orderId,
                 file_name: f.name,
                 storage_path: storagePath,
@@ -881,8 +878,23 @@ async function submitOrder() {
                 color_mode: f.config.colorMode,
                 sides: f.config.sides,
                 page_range: f.config.pageRange || 'All'
-            }]);
-            if (fileDbErr) throw new Error("Database Sync Failed: " + (fileDbErr.message || JSON.stringify(fileDbErr)));
+            };
+
+            const fileDbRes = await fetch(`${SUPABASE_URL}/rest/v1/printhub_files`, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify(filePayload)
+            });
+
+            if (!fileDbRes.ok) {
+                const errText = await fileDbRes.text();
+                throw new Error(`Database Sync Failed: ${fileDbRes.status} ${errText}`);
+            }
         }
 
         // Success
