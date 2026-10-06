@@ -23,7 +23,7 @@ jobs:
         pip install pyinstaller supabase requests python-dotenv
         
     - name: Compile Windows Executable
-      run: pyinstaller --noconsole --onefile --name PrintBridge print_bridge.py
+      run: pyinstaller --onefile --name PrintBridge print_bridge.py
       
     - name: Upload Windows EXE
       uses: actions/upload-artifact@v4
