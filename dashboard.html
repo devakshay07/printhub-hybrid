@@ -222,7 +222,7 @@
             const orders = await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}&select=otp`);
             if (orders && orders.length > 0) {
                 if (orders[0].otp === otpInput) {
-                    await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}`, 'PATCH', { otp_verified: true });
+                    await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}`, 'PATCH', { otp_verified: true, status: 'Paid' });
                     sysLog(`OTP Verified for ${orderId.substring(0,8)}`);
                     fetchOrders();
                     return true;
@@ -276,7 +276,7 @@
                               'bg-green-100 text-green-700 border-green-200');
                               
             let otpSection = '';
-            if (order.status === 'Paid') {
+            if (order.status === 'Pending' || order.status === 'Paid') {
                 if (!order.otp_verified) {
                     otpSection = `
                         <form onsubmit="handleVerifyOtp(event, '${order.id}')" class="mt-4 flex gap-2">
