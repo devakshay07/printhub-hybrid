@@ -261,12 +261,12 @@
 
     function renderOrders(orders) {
         if (!orders || orders.length === 0) {
-            emptyState.classList.remove('hidden');
+            emptyState.classList.remove('hidden', 'hide');
             ordersContainer.innerHTML = '';
             return;
         }
         
-        emptyState.classList.add('hidden');
+        emptyState.classList.add('hidden', 'hide');
         let html = '';
         
         orders.forEach(order => {
