@@ -263,6 +263,11 @@
             if (isReportsView) {
                 renderReports();
             } else {
+                // Prevent destroying the DOM if the agent is actively typing an OTP
+                const activeEl = document.activeElement;
+                if (activeEl && activeEl.tagName === 'INPUT' && activeEl.closest('#orders-container')) {
+                    return; 
+                }
                 filterAndRenderOrders();
             }
         } catch (e) {
@@ -401,6 +406,7 @@
         const otp = input.value.trim();
         if(otp.length !== 4) return;
         
+        input.blur(); // Remove focus so it doesn't block background re-renders
         btn.disabled = true;
         const oldText = btn.innerHTML;
         btn.innerHTML = 'Verifying...';
