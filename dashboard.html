@@ -56,7 +56,10 @@
                     <p class="text-sm font-medium text-slate-500" id="shop-name">Loading shop...</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap justify-end">
+                <button onclick="toggleReports()" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-all">
+                    <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Reports
+                </button>
                 <button id="btn-sync" class="bg-white border-2 border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-all active:scale-95">
                     <i data-lucide="refresh-cw" class="w-4 h-4"></i> Sync
                 </button>
@@ -68,6 +71,13 @@
                 </button>
             </div>
         </header>
+        
+        <div class="mb-6 flex gap-2">
+            <div class="relative flex-1">
+                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
+                <input type="text" id="search-input" oninput="filterAndRenderOrders()" placeholder="Search by OTP, Customer Name, Phone, or Order ID..." class="w-full bg-white border-2 border-slate-200 rounded-2xl pl-12 pr-4 py-3 font-medium text-slate-900 focus:border-blue-600 focus:shadow-md outline-none transition-all">
+            </div>
+        </div>
 
         <div id="lock-container"></div>
 
@@ -81,9 +91,64 @@
             <!-- Orders injected here -->
         </div>
     </div>
+
+    <!-- Reports Screen -->
+    <div id="reports-screen" class="hide max-w-5xl mx-auto p-4 sm:p-8">
+        <header class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+                    <i data-lucide="bar-chart-2" class="text-white w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black text-slate-900 tracking-tight">Financial Reports</h1>
+                    <p class="text-sm font-medium text-slate-500">Revenue & transaction history</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="downloadCSV()" class="bg-emerald-500 text-white hover:bg-emerald-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-all">
+                    <i data-lucide="download" class="w-4 h-4"></i> Export CSV
+                </button>
+                <button onclick="toggleReports()" class="bg-slate-800 text-white hover:bg-slate-900 px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-all">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Queue
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <div class="text-sm font-bold text-slate-500 mb-2">TOTAL REVENUE</div>
+                <div class="text-3xl font-black text-slate-900" id="report-total-revenue">₹0</div>
+            </div>
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <div class="text-sm font-bold text-slate-500 mb-2">COMPLETED ORDERS</div>
+                <div class="text-3xl font-black text-slate-900" id="report-completed-count">0</div>
+            </div>
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <div class="text-sm font-bold text-slate-500 mb-2">PENDING ORDERS</div>
+                <div class="text-3xl font-black text-slate-900" id="report-pending-count">0</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-600">
+                    <thead class="bg-slate-50 border-b border-slate-200 text-xs uppercase font-bold text-slate-500">
+                        <tr>
+                            <th class="px-6 py-4">Date</th>
+                            <th class="px-6 py-4">Customer</th>
+                            <th class="px-6 py-4">Payment</th>
+                            <th class="px-6 py-4">Amount</th>
+                            <th class="px-6 py-4">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reports-table-body" class="divide-y divide-slate-100">
+                        <!-- Rows injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
-
-
 
 <script>
     const SUPABASE_URL = 'https://mzkizzakuporgzljealz.supabase.co';
@@ -98,6 +163,8 @@
     let currentSession = null;
     let shopId = null;
     let refreshInterval = null;
+    let allOrders = [];
+    let isReportsView = false;
 
     // Initialize UI
     if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
@@ -190,11 +257,107 @@
     async function fetchOrders() {
         if (!shopId) return;
         try {
+            // Fetch orders including customer names and phones for the UI and Reports
             const orders = await supabaseFetch(`/rest/v1/printhub_orders?shop_id=eq.${shopId}&order=created_at.desc`);
-            renderOrders(orders || []);
+            allOrders = orders || [];
+            if (isReportsView) {
+                renderReports();
+            } else {
+                filterAndRenderOrders();
+            }
         } catch (e) {
             sysLog('Queue fetch error: ' + e.message);
         }
+    }
+    
+    window.filterAndRenderOrders = function() {
+        const query = document.getElementById('search-input').value.toLowerCase().trim();
+        if (!query) {
+            renderOrders(allOrders);
+            return;
+        }
+        
+        const filtered = allOrders.filter(o => 
+            (o.otp && o.otp.toLowerCase() === query) ||
+            (o.id && o.id.toLowerCase().includes(query)) ||
+            (o.customer_name && o.customer_name.toLowerCase().includes(query)) ||
+            (o.customer_phone && o.customer_phone.toLowerCase().includes(query))
+        );
+        renderOrders(filtered);
+    }
+    
+    window.toggleReports = function() {
+        isReportsView = !isReportsView;
+        if (isReportsView) {
+            document.getElementById('dashboard-screen').classList.add('hide');
+            document.getElementById('reports-screen').classList.remove('hide');
+            renderReports();
+        } else {
+            document.getElementById('reports-screen').classList.add('hide');
+            document.getElementById('dashboard-screen').classList.remove('hide');
+            filterAndRenderOrders();
+        }
+    }
+    
+    function renderReports() {
+        let totalRevenue = 0;
+        let completedCount = 0;
+        let pendingCount = 0;
+        let tableHtml = '';
+        
+        allOrders.forEach(o => {
+            if (['Paid', 'Printed', 'Completed'].includes(o.status)) {
+                totalRevenue += parseFloat(o.total_amount || 0);
+                completedCount++;
+            } else if (o.status === 'Pending') {
+                pendingCount++;
+            }
+            
+            const dateStr = new Date(o.created_at).toLocaleString();
+            tableHtml += `
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4 whitespace-nowrap">${dateStr}</td>
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-slate-800">${o.customer_name || 'N/A'}</div>
+                        <div class="text-xs text-slate-500">${o.customer_phone || ''}</div>
+                    </td>
+                    <td class="px-6 py-4 capitalize">${o.payment_mode || 'N/A'}</td>
+                    <td class="px-6 py-4 font-bold">₹${o.total_amount}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 bg-slate-100 rounded text-xs font-bold">${o.status}</span>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        document.getElementById('report-total-revenue').textContent = `₹${totalRevenue.toFixed(2)}`;
+        document.getElementById('report-completed-count').textContent = completedCount;
+        document.getElementById('report-pending-count').textContent = pendingCount;
+        document.getElementById('reports-table-body').innerHTML = tableHtml;
+        if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
+    }
+    
+    window.downloadCSV = function() {
+        let csv = "Date,Order ID,Customer Name,Phone,Amount,Payment Mode,Status\n";
+        allOrders.forEach(o => {
+            const dateStr = new Date(o.created_at).toLocaleString().replace(/,/g, '');
+            const name = (o.customer_name || '').replace(/,/g, ' ');
+            const phone = o.customer_phone || '';
+            const amount = o.total_amount || 0;
+            const mode = o.payment_mode || '';
+            const status = o.status || '';
+            csv += `${dateStr},${o.id},${name},${phone},${amount},${mode},${status}
+`;
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `PrintHub_Report_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     }
 
     window.updateOrderStatus = async function(orderId, newStatus) {
@@ -378,7 +541,13 @@
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <div class="text-xs font-bold text-slate-400 mb-1">ORDER ID</div>
-                        <div class="font-mono text-sm text-slate-900 bg-slate-100 px-2 py-1 rounded-md">#${order.id.substring(0,8)}</div>
+                        <div class="font-mono text-sm text-slate-900 bg-slate-100 px-2 py-1 rounded-md mb-2">#${order.id.substring(0,8)}</div>
+                        <div class="flex items-center gap-2 text-slate-700">
+                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i> <span class="font-bold text-sm">${order.customer_name || 'Anonymous'}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-slate-500 text-xs mt-1">
+                            <i data-lucide="phone" class="w-4 h-4 text-slate-400"></i> <span>${order.customer_phone || 'N/A'}</span>
+                        </div>
                     </div>
                     <div class="text-right">
                         <div class="text-xs font-bold text-slate-400 mb-1">STATUS</div>
