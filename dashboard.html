@@ -365,6 +365,12 @@
         document.body.removeChild(a);
     }
 
+    window.cancelOrder = function(orderId) {
+        if(confirm("Are you sure you want to cancel this order? This action cannot be undone.")) {
+            updateOrderStatus(orderId, 'Cancelled');
+        }
+    }
+
     window.updateOrderStatus = async function(orderId, newStatus) {
         try {
             await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}`, 'PATCH', { status: newStatus });
@@ -512,7 +518,8 @@
             const isUrgent = order.is_urgent;
             const statusColor = order.status === 'Pending' ? 'bg-amber-100 text-amber-700 border-amber-200' : 
                               (order.status === 'Paid' ? 'bg-blue-100 text-blue-700 border-blue-200' : 
-                              'bg-green-100 text-green-700 border-green-200');
+                              (order.status === 'Cancelled' ? 'bg-red-100 text-red-700 border-red-200' :
+                              'bg-green-100 text-green-700 border-green-200'));
                               
             let otpSection = '';
             if (order.status === 'Pending' || order.status === 'Paid') {
@@ -555,11 +562,14 @@
                             <i data-lucide="phone" class="w-4 h-4 text-slate-400"></i> <span>${order.customer_phone || 'N/A'}</span>
                         </div>
                     </div>
-                    <div class="text-right">
+                    <div class="text-right flex flex-col items-end">
                         <div class="text-xs font-bold text-slate-400 mb-1">STATUS</div>
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColor}">
-                            ${order.status}
-                        </span>
+                        <div class="flex items-center gap-2">
+                            ${(order.status === 'Pending' || order.status === 'Paid') ? `<button onclick="cancelOrder('${order.id}')" class="text-slate-400 hover:text-red-500 transition-colors p-1" title="Cancel Order"><i data-lucide="x-circle" class="w-5 h-5"></i></button>` : ''}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColor}">
+                                ${order.status}
+                            </span>
+                        </div>
                     </div>
                 </div>
                 
