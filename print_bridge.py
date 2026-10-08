@@ -87,16 +87,27 @@ def print_file(file_path, copies, color_mode, sides):
     if system == "Windows":
         target_printer = local_cfg.get("printer_color") if color_mode == 'color' else local_cfg.get("printer_bw")
         try:
+            original_default = None
             if target_printer:
                 logger.info(f"Routing to specific Windows printer: {target_printer}")
-                # Use powershell Start-Process with PrintTo verb to specify printer
-                ps_cmd = f'Start-Process -FilePath "{file_path}" -Verb PrintTo -ArgumentList \'"{target_printer}"\''
-                subprocess.run(['powershell', '-Command', ps_cmd], check=True)
+                # Hack: Temporarily set the default printer because PrintTo verb is often unregistered for PDFs/JPGs
+                try:
+                    res = subprocess.run(['powershell', '-Command', '(Get-WmiObject -Query "SELECT * FROM Win32_Printer WHERE Default=$true").Name'], capture_output=True, text=True)
+                    original_default = res.stdout.strip()
+                    subprocess.run(['powershell', '-Command', f'(New-Object -ComObject WScript.Network).SetDefaultPrinter("{target_printer}")'], check=True)
+                except Exception as e:
+                    logger.error(f"Failed to swap default printer: {e}")
             else:
-                logger.info(f"Using default Windows printer for {file_path}")
-                os.startfile(file_path, "print")
+                logger.info(f"Using current default Windows printer for {file_path}")
+            
+            # The standard 'print' verb is highly reliable because it uses the OS default handler
+            os.startfile(file_path, "print")
+            time.sleep(10)  # Wait for the GUI print spooler to catch the job before swapping back
+            
+            # Restore original printer
+            if target_printer and original_default and original_default != target_printer:
+                subprocess.run(['powershell', '-Command', f'(New-Object -ComObject WScript.Network).SetDefaultPrinter("{original_default}")'])
                 
-            time.sleep(5)  # Wait for spooler
             return True
         except Exception as e:
             logger.error(f"Windows print failed: {e}")
