@@ -12,6 +12,9 @@ import uuid
 from getpass import getpass
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import urllib.parse
 
 def get_hwid():
     system = platform.system()
@@ -82,10 +85,18 @@ def print_file(file_path, copies, color_mode, sides):
     local_cfg = get_local_config()
     
     if system == "Windows":
-        logger.info(f"Using generic Windows print for {file_path}")
+        target_printer = local_cfg.get("printer_color") if color_mode == 'color' else local_cfg.get("printer_bw")
         try:
-            os.startfile(file_path, "print")
-            time.sleep(5)  # Wait a bit for the print spooler to catch it
+            if target_printer:
+                logger.info(f"Routing to specific Windows printer: {target_printer}")
+                # Use powershell Start-Process with PrintTo verb to specify printer
+                ps_cmd = f'Start-Process -FilePath "{file_path}" -Verb PrintTo -ArgumentList \'"{target_printer}"\''
+                subprocess.run(['powershell', '-Command', ps_cmd], check=True)
+            else:
+                logger.info(f"Using default Windows printer for {file_path}")
+                os.startfile(file_path, "print")
+                
+            time.sleep(5)  # Wait for spooler
             return True
         except Exception as e:
             logger.error(f"Windows print failed: {e}")
@@ -185,6 +196,107 @@ def process_order(order):
         supabase.table('printhub_orders').update({'status': 'Print Failed'}).eq('id', order_id).execute()
         logger.error(f"Order #{order_id[:8]} encountered errors during printing.")
 
+
+# ==========================================
+# LOCAL CONFIGURATION SERVER (LOCALHOST:9090)
+# ==========================================
+def get_system_printers():
+    system = platform.system()
+    printers = []
+    try:
+        if system == "Windows":
+            res = subprocess.run(['powershell', '-Command', 'Get-Printer | Select-Object -ExpandProperty Name'], capture_output=True, text=True)
+            printers = [p.strip() for p in res.stdout.split('\n') if p.strip()]
+        else:
+            res = subprocess.run(['lpstat', '-a'], capture_output=True, text=True)
+            printers = [line.split(' ')[0] for line in res.stdout.split('\n') if line.strip()]
+    except Exception as e:
+        logger.error(f"Failed to list printers: {e}")
+    return printers
+
+class ConfigHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            
+            cfg = get_local_config()
+            printers = get_system_printers()
+            
+            options_bw = "<option value=''>-- System Default --</option>"
+            options_color = "<option value=''>-- System Default --</option>"
+            
+            for p in printers:
+                sel_bw = "selected" if p == cfg.get('printer_bw') else ""
+                sel_color = "selected" if p == cfg.get('printer_color') else ""
+                options_bw += f"<option value='{p}' {sel_bw}>{p}</option>"
+                options_color += f"<option value='{p}' {sel_color}>{p}</option>"
+
+            html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>PrintHub Local Config</title>
+                <style>
+                    body {{ font-family: -apple-system, system-ui, sans-serif; background: #f8fafc; color: #0f172a; max-width: 600px; margin: 40px auto; padding: 20px; }}
+                    .card {{ background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }}
+                    h1 {{ margin-top: 0; font-size: 24px; }}
+                    label {{ display: block; font-weight: bold; margin-top: 20px; margin-bottom: 8px; font-size: 14px; color: #475569; }}
+                    select {{ width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 16px; margin-bottom: 10px; }}
+                    button {{ background: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 20px; width: 100%; }}
+                    button:hover {{ background: #059669; }}
+                    .success {{ background: #dcfce7; color: #166534; padding: 10px; border-radius: 6px; margin-bottom: 20px; display: none; }}
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <h1>Hardware Configuration</h1>
+                    <p style="color: #64748b; font-size: 14px;">Select the physical printers connected to this computer. This page is only visible to you.</p>
+                    <form method="POST" action="/save">
+                        <label>Black & White Printer Routing</label>
+                        <select name="printer_bw">{options_bw}</select>
+                        
+                        <label>Color Printer Routing</label>
+                        <select name="printer_color">{options_color}</select>
+                        
+                        <button type="submit">Save Hardware Routing</button>
+                    </form>
+                </div>
+            </body>
+            </html>
+            """
+            self.wfile.write(html.encode())
+            
+    def do_POST(self):
+        if self.path == '/save':
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length).decode()
+            params = urllib.parse.parse_qs(body)
+            
+            cfg = get_local_config()
+            cfg['printer_bw'] = params.get('printer_bw', [''])[0]
+            cfg['printer_color'] = params.get('printer_color', [''])[0]
+            
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(cfg, f)
+                
+            self.send_response(303)
+            self.send_header('Location', '/')
+            self.end_headers()
+            
+    def log_message(self, format, *args):
+        pass # Suppress HTTP logs to keep terminal clean
+
+def run_local_server():
+    try:
+        server = HTTPServer(('127.0.0.1', 9090), ConfigHandler)
+        logger.info("Local Configuration UI running at http://localhost:9090")
+        server.serve_forever()
+    except Exception as e:
+        logger.error(f"Failed to start local config server: {e}")
+
+
 def main():
     print("=======================================")
     print(" PRINT BRIDGE - HEADLESS AGENT ")
@@ -282,6 +394,10 @@ def main():
         return
         
     logger.info(f"Bridge Active for Shop ID: {shop_id}")
+    
+    # Spin up local config UI
+    threading.Thread(target=run_local_server, daemon=True).start()
+    
     logger.info("Polling for approved print jobs...")
     
     last_heartbeat_time = 0
