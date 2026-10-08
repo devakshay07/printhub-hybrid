@@ -394,10 +394,12 @@ def process_order(order):
             abs_path = os.path.abspath(local_path)
             if platform.system() == "Windows":
                 try:
-                    os.startfile(abs_path)
+                    # explorer.exe is the most robust way to force a file open on Windows. 
+                    # If there's no default app, it explicitly asks the user on-screen rather than silently failing.
+                    subprocess.run(['explorer.exe', abs_path])
                 except Exception as ex1:
-                    logger.warning(f"os.startfile failed ({ex1}), falling back to cmd start...")
-                    subprocess.run(['cmd', '/c', 'start', '""', f'"{abs_path}"'], shell=True)
+                    # Absolute fallback
+                    os.startfile(abs_path)
             else:
                 subprocess.run(['open', abs_path])
         except Exception as e:
