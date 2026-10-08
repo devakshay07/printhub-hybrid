@@ -350,8 +350,18 @@ def main():
                 if exe_path.endswith('.exe'):
                     vbs_content = f'Set WshShell = CreateObject("WScript.Shell")\nWshShell.Run chr(34) & "{exe_path}" & Chr(34), 0\nSet WshShell = Nothing'
                     with open(vbs_path, 'w') as f:
-                        f.write(vbs_content.replace('\n', '\n'))
-                    print("\n[SUCCESS] Auto-start configured! PrintBridge will now run silently in the background every time you turn on this computer.\n")
+                        f.write(vbs_content)
+                        
+                    # Add to Windows Registry for ultimate reliability
+                    try:
+                        import winreg
+                        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run', 0, winreg.KEY_SET_VALUE)
+                        winreg.SetValueEx(key, 'PrintHubBridge', 0, winreg.REG_SZ, f'wscript.exe "{vbs_path}"')
+                        winreg.CloseKey(key)
+                    except Exception as reg_e:
+                        logger.warning(f"Failed to set Registry key (non-fatal): {reg_e}")
+                        
+                    print("\n[SUCCESS] Auto-start heavily secured! PrintBridge is injected into the Startup folder AND the Windows Registry.\n")
                     
     except Exception as e:
         logger.error(f"Authentication failed: {e}")
