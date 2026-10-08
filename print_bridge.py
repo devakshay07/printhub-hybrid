@@ -259,11 +259,13 @@ def main():
         shop_info = supabase.table('printhub_shops').select('active_device_id').eq('id', shop_id).execute()
         current_hwid = shop_info.data[0].get('active_device_id')
         
-        if not current_hwid:
+        base_hwid = current_hwid.split('|')[0] if current_hwid else None
+        
+        if not base_hwid:
             # First time login on this shop - lock it to this device
-            supabase.table('printhub_shops').update({'active_device_id': HWID}).eq('id', shop_id).execute()
+            supabase.table('printhub_shops').update({'active_device_id': f"{HWID}|{int(time.time())}"}).eq('id', shop_id).execute()
             logger.info(f"Shop locked to this Hardware ID: {HWID}")
-        elif current_hwid != HWID:
+        elif base_hwid != HWID:
             # Device mismatch! Reject login.
             logger.error(f"SECURITY ALERT: This account is already locked to another computer.")
             logger.error(f"Please contact support to reset your Hardware ID if you changed devices.")
@@ -278,8 +280,16 @@ def main():
     logger.info(f"Bridge Active for Shop ID: {shop_id}")
     logger.info("Polling for approved print jobs...")
     
+    last_heartbeat_time = 0
     while True:
         try:
+            current_time = int(time.time())
+            
+            # Send Heartbeat every 15 seconds to keep the Dashboard "Online" meter green
+            if current_time - last_heartbeat_time >= 15:
+                supabase.table('printhub_shops').update({'active_device_id': f"{HWID}|{current_time}"}).eq('id', shop_id).execute()
+                last_heartbeat_time = current_time
+
             # 1. Hardware Heartbeat & Killswitch Check
             heartbeat_res = supabase.table('printhub_shops').select('active_device_id, is_active').eq('id', shop_id).execute()
             if heartbeat_res.data:
@@ -288,7 +298,9 @@ def main():
                     logger.error("Account suspended by platform administrator. Pausing operations.")
                     time.sleep(30)
                     continue
-                if str(shop_status.get('active_device_id')) != HWID:
+                
+                fetched_hwid = str(shop_status.get('active_device_id', '')).split('|')[0]
+                if fetched_hwid != HWID:
                     logger.error("Account logged in from another computer. Device access revoked. Exiting.")
                     break
                     
@@ -310,6 +322,14 @@ def main():
         time.sleep(5)
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        error_log = os.path.expanduser('~/.printhub/crash_report.txt')
+        with open(error_log, 'w') as f:
+            f.write(traceback.format_exc())
+        print(f"FATAL CRASH. See {error_log} for details.")
+        time.sleep(10)
 
 # Trigger build
