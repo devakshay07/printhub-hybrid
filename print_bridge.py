@@ -317,7 +317,10 @@ def main():
     password = os.environ.get('SHOP_PASSWORD')
     
     # Check local credential store
-    cred_dir = os.path.expanduser('~/.printhub')
+    if platform.system() == "Windows":
+        cred_dir = os.path.join(os.environ.get('APPDATA'), 'PrintHub')
+    else:
+        cred_dir = os.path.expanduser('~/.printhub')
     cred_file = os.path.join(cred_dir, 'credentials.json')
     
     if not email or not password:
@@ -333,8 +336,9 @@ def main():
 
     if not email or not password:
         if not sys.stdin.isatty():
-            logger.error("Missing credentials in headless mode. Exiting.")
-            sys.exit(1)
+            logger.error("Missing credentials in headless mode. Waiting 60 seconds and retrying...")
+            time.sleep(60)
+            raise ConnectionError("Missing credentials (headless)")
         if not email:
             email = input("Shop Email: ")
         if not password:
@@ -473,7 +477,10 @@ if __name__ == '__main__':
         except Exception as e:
             retry_count += 1
             import traceback
-            error_log = os.path.expanduser('~/.printhub/crash_report.txt')
+            if platform.system() == "Windows":
+                error_log = os.path.join(os.environ.get('APPDATA'), 'PrintHub', 'crash_report.txt')
+            else:
+                error_log = os.path.expanduser('~/.printhub/crash_report.txt')
             with open(error_log, 'a') as f:
                 f.write(f"\n--- CRASH {time.ctime()} ---\n")
                 f.write(traceback.format_exc())
