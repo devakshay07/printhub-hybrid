@@ -394,12 +394,13 @@ def process_order(order):
             abs_path = os.path.abspath(local_path)
             if platform.system() == "Windows":
                 try:
-                    # explorer.exe is the most robust way to force a file open on Windows. 
-                    # If there's no default app, it explicitly asks the user on-screen rather than silently failing.
-                    subprocess.run(['explorer.exe', abs_path])
+                    # WORA Preview Hack: Force the file into Microsoft Edge (Chromium).
+                    # Edge is permanently baked into Windows 10/11. It has an enterprise-grade PDF/Image 
+                    # viewer with a robust Chromium print dialog (Ctrl+P).
+                    # This completely bypasses OEM bloatware like Samsung Gallery or Samsung Notes.
+                    subprocess.run(['cmd', '/c', 'start', 'msedge', f'"{abs_path}"'], shell=True)
                 except Exception as ex1:
-                    # Absolute fallback
-                    os.startfile(abs_path)
+                    subprocess.run(['explorer.exe', abs_path])
             else:
                 subprocess.run(['open', abs_path])
         except Exception as e:
