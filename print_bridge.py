@@ -338,9 +338,7 @@ if __name__ == '__main__':
             import traceback
             error_log = os.path.expanduser('~/.printhub/crash_report.txt')
             with open(error_log, 'a') as f:
-                f.write(f"
---- CRASH {time.ctime()} ---
-")
+                f.write(f"\n--- CRASH {time.ctime()} ---\n")
                 f.write(traceback.format_exc())
             
             print(f"[{time.ctime()}] Network or System error. Retrying in 10 seconds... (Attempt {retry_count})")
