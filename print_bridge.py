@@ -208,11 +208,15 @@ def main():
             except Exception as e:
                 logger.error(f"Failed to read saved credentials: {e}")
 
-    if not email:
-        email = input("Shop Email: ")
-    if not password:
-        import getpass
-        password = getpass.getpass("Shop Password: ")
+    if not email or not password:
+        if not sys.stdin.isatty():
+            logger.error("Missing credentials in headless mode. Exiting.")
+            sys.exit(1)
+        if not email:
+            email = input("Shop Email: ")
+        if not password:
+            import getpass
+            password = getpass.getpass("Shop Password: ")
 
     try:
         auth_res = supabase.auth.sign_in_with_password({"email": email, "password": password})
@@ -239,17 +243,17 @@ def main():
                     
     except Exception as e:
         logger.error(f"Authentication failed: {e}")
-        return
+        raise ConnectionError(f"Auth failed: {e}")
 
     shop_res = supabase.table('printhub_shops').select('id, is_active').eq('owner_uid', user_id).execute()
     if not shop_res.data:
         logger.error("No PrintHub shop linked to this account.")
-        return
+        sys.exit(1)
         
     shop = shop_res.data[0]
     if not shop.get('is_active'):
         logger.error("Shop is suspended by Superadmin.")
-        return
+        sys.exit(1)
     
     shop_id = shop['id']
     
@@ -322,14 +326,24 @@ def main():
         time.sleep(5)
 
 if __name__ == '__main__':
-    try:
-        main()
-    except Exception as e:
-        import traceback
-        error_log = os.path.expanduser('~/.printhub/crash_report.txt')
-        with open(error_log, 'w') as f:
-            f.write(traceback.format_exc())
-        print(f"FATAL CRASH. See {error_log} for details.")
-        time.sleep(10)
+    retry_count = 0
+    while True:
+        try:
+            main()
+        except SystemExit:
+            # Explicit exit requested (e.g. suspended shop or missing credentials)
+            break
+        except Exception as e:
+            retry_count += 1
+            import traceback
+            error_log = os.path.expanduser('~/.printhub/crash_report.txt')
+            with open(error_log, 'a') as f:
+                f.write(f"
+--- CRASH {time.ctime()} ---
+")
+                f.write(traceback.format_exc())
+            
+            print(f"[{time.ctime()}] Network or System error. Retrying in 10 seconds... (Attempt {retry_count})")
+            time.sleep(10)
 
 # Trigger build
