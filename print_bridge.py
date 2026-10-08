@@ -81,8 +81,13 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-TEMP_DIR = "temp_print_spool"
-CONFIG_FILE = "shop_config.json"
+if platform.system() == "Windows":
+    _base_dir = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'PrintHub')
+else:
+    _base_dir = os.path.expanduser('~/.printhub')
+
+TEMP_DIR = os.path.join(_base_dir, "temp_print_spool")
+CONFIG_FILE = os.path.join(_base_dir, "shop_config.json")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 def get_local_config():
@@ -386,10 +391,15 @@ def process_order(order):
         print(f"{Colors.CYAN}========================================={Colors.RESET}\n")
         
         try:
+            abs_path = os.path.abspath(local_path)
             if platform.system() == "Windows":
-                os.startfile(local_path)
+                try:
+                    os.startfile(abs_path)
+                except Exception as ex1:
+                    logger.warning(f"os.startfile failed ({ex1}), falling back to cmd start...")
+                    subprocess.run(['cmd', '/c', 'start', '""', f'"{abs_path}"'], shell=True)
             else:
-                subprocess.run(['open', local_path])
+                subprocess.run(['open', abs_path])
         except Exception as e:
             logger.error(f"Failed to open {fname}: {e}")
             
