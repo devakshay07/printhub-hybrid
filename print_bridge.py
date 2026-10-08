@@ -100,44 +100,8 @@ def print_file(file_path, copies, color_mode, sides):
             else:
                 logger.info(f"Using current default Windows printer for {file_path}")
             
-            # Check for SumatraPDF (The holy grail of Windows headless printing)
-            sumatra_paths = [
-                "SumatraPDF.exe",
-                os.path.join(os.environ.get('ProgramFiles', 'C:\\Program Files'), 'SumatraPDF', 'SumatraPDF.exe'),
-                os.path.join(os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)'), 'SumatraPDF', 'SumatraPDF.exe')
-            ]
-            
-            sumatra_exe = None
-            for sp in sumatra_paths:
-                if os.path.exists(sp):
-                    sumatra_exe = sp
-                    break
-                    
-            if sumatra_exe:
-                logger.info(f"Using SumatraPDF engine for ultra-reliable headless printing...")
-                cmd = [sumatra_exe, "-silent"]
-                if target_printer:
-                    cmd.extend(["-print-to", target_printer])
-                else:
-                    cmd.append("-print-to-default")
-                cmd.append(file_path)
-                
-                subprocess.run(cmd, check=True)
-                
-                # Restore original printer just in case we swapped it earlier
-                if target_printer and original_default and original_default != target_printer:
-                    subprocess.run(['powershell', '-Command', f'(New-Object -ComObject WScript.Network).SetDefaultPrinter("{original_default}")'])
-                return True
-
-            # Fallback to standard Windows shell print if Sumatra is not installed
-            logger.warning("SumatraPDF not found. Falling back to Windows Shell print...")
-            os.startfile(file_path, "print")
-            time.sleep(10)  # Wait for the GUI print spooler to catch the job before swapping back
-            
-            # Restore original printer
-            if target_printer and original_default and original_default != target_printer:
-                subprocess.run(['powershell', '-Command', f'(New-Object -ComObject WScript.Network).SetDefaultPrinter("{original_default}")'])
-                
+            logger.info(f"Opening {file_path} for manual printing...")
+            os.startfile(file_path)
             return True
         except Exception as e:
             logger.error(f"Windows print failed: {e}")
@@ -221,13 +185,8 @@ def process_order(order):
         if not success:
             all_printed = False
 
-        # Secure wipe (Zero-Trace Privacy)
-        if os.path.exists(local_filename):
-            try:
-                os.remove(local_filename)
-                logger.info(f"Securely deleted local payload: {local_filename}")
-            except Exception as e:
-                logger.error(f"Failed to delete {local_filename}: {e}")
+        # Kept on disk temporarily so the agent can manually print it.
+        # Note: A separate cleanup routine should periodically purge the temp_print_spool folder.
                 
     # 3. Update final status
     if all_printed:
