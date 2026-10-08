@@ -314,6 +314,75 @@ def run_local_server():
         logger.error(f"Failed to start local config server: {e}")
 
 
+def process_order(order):
+    order_id = order['id']
+    logger.info(f"Processing Order #{order_id[:8]}")
+    
+    # 1. Fetch files
+    files_res = supabase.table('printhub_files').select('*').eq('order_id', order_id).execute()
+    if not files_res.data:
+        logger.warning(f"No files found for order {order_id}")
+        supabase.table('printhub_orders').update({'status': 'Printed'}).eq('id', order_id).execute()
+        return
+        
+    # 2. Download files
+    for f_rec in files_res.data:
+        try:
+            storage_path = f_rec['storage_path']
+            filename = os.path.basename(storage_path)
+            local_filename = os.path.join(TEMP_DIR, filename)
+            
+            logger.info(f"Downloading {storage_path}...")
+            # Using authenticated GET
+            import requests
+            session = supabase.auth.get_session()
+            headers = {"Authorization": f"Bearer {session.access_token}"} if session else {}
+            
+            file_url = f"{supabase.supabase_url}/storage/v1/object/authenticated/print-files/{storage_path}"
+            r = requests.get(file_url, headers=headers)
+            if r.status_code == 200:
+                with open(local_filename, 'wb') as lf:
+                    lf.write(r.content)
+            else:
+                # Try public bucket if authenticated fails
+                public_url = supabase.storage.from_("print-files").get_public_url(storage_path)
+                pr = requests.get(public_url)
+                if pr.status_code == 200:
+                    with open(local_filename, 'wb') as lf:
+                        lf.write(pr.content)
+                else:
+                    logger.error(f"Failed to download {storage_path}")
+        except Exception as e:
+            logger.error(f"Download failed for {storage_path}: {e}")
+            
+    # 3. Open files natively for print preview and manual printing
+    for f_rec in files_res.data:
+        fname = os.path.basename(f_rec['storage_path'])
+        local_path = os.path.join(TEMP_DIR, fname)
+        if not os.path.exists(local_path):
+            continue
+            
+        color_str = f"{Colors.BLUE}[COLOR]{Colors.RESET}" if f_rec.get('color_mode') == 'color' else f"{Colors.BOLD}[B&W]{Colors.RESET}"
+        copies = f_rec.get('copies', 1)
+        
+        print(f"\n{Colors.CYAN}========================================={Colors.RESET}")
+        print(f"{Colors.YELLOW}🖨️  OPENING PRINT PREVIEW{Colors.RESET}")
+        print(f"File: {Colors.BOLD}{fname}{Colors.RESET}")
+        print(f"Required Settings: {color_str} | {copies} Copies")
+        print(f"{Colors.CYAN}========================================={Colors.RESET}\n")
+        
+        try:
+            if platform.system() == "Windows":
+                os.startfile(local_path)
+            else:
+                subprocess.run(['open', local_path])
+        except Exception as e:
+            logger.error(f"Failed to open {fname}: {e}")
+            
+    # Auto-cleanup thread is handling the deletion.
+    supabase.table('printhub_orders').update({'status': 'Printed'}).eq('id', order_id).execute()
+    logger.info(f"Order #{order_id[:8]} marked as printed. Awaiting next order...")
+
 def main():
     print("=======================================")
     print(" PRINT BRIDGE - HEADLESS AGENT ")
