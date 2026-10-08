@@ -80,72 +80,7 @@ def get_local_config():
             logger.error(f"Error reading config: {e}")
     return {"printer_bw": "", "printer_color": ""}
 
-def print_file(file_path, copies, color_mode, sides):
-    system = platform.system()
-    local_cfg = get_local_config()
-    
-    if system == "Windows":
-        target_printer = local_cfg.get("printer_color") if color_mode == 'color' else local_cfg.get("printer_bw")
-        try:
-            original_default = None
-            if target_printer:
-                logger.info(f"Routing to specific Windows printer: {target_printer}")
-                # Hack: Temporarily set the default printer because PrintTo verb is often unregistered for PDFs/JPGs
-                try:
-                    res = subprocess.run(['powershell', '-Command', '(Get-WmiObject -Query "SELECT * FROM Win32_Printer WHERE Default=$true").Name'], capture_output=True, text=True)
-                    original_default = res.stdout.strip()
-                    subprocess.run(['powershell', '-Command', f'(New-Object -ComObject WScript.Network).SetDefaultPrinter("{target_printer}")'], check=True)
-                except Exception as e:
-                    logger.error(f"Failed to swap default printer: {e}")
-            else:
-                logger.info(f"Using current default Windows printer for {file_path}")
-            
-            logger.info(f"Opening {file_path} for manual printing...")
-            os.startfile(file_path)
-            return True
-        except Exception as e:
-            logger.error(f"Windows print failed: {e}")
-            return False
-    else:
-        # macOS / Linux
-        cmd = ["lp", "-n", str(copies)]
-        if color_mode == 'bw':
-            cmd.extend(["-o", "ColorModel=Gray"])
-            if local_cfg.get("printer_bw"):
-                cmd.extend(["-d", local_cfg["printer_bw"]])
-        else:
-            if local_cfg.get("printer_color"):
-                cmd.extend(["-d", local_cfg["printer_color"]])
-                
-        if sides == 'double':
-            cmd.extend(["-o", "sides=two-sided-long-edge"])
-        else:
-            cmd.extend(["-o", "sides=one-sided"])
-            
-        cmd.append(file_path)
-        logger.info(f"Running print command: {' '.join(cmd)}")
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error(f"Print failed: {result.stderr}")
-            return False
-        logger.info(f"Print successful: {result.stdout.strip()}")
-        return True
 
-def process_order(order):
-    order_id = order['id']
-    shop_id = order['shop_id']
-    logger.info(f"Processing Order #{order_id[:8]}...")
-    
-    # 1. Update status to 'Printing...' to prevent double processing
-    supabase.table('printhub_orders').update({'status': 'Printing...'}).eq('id', order_id).execute()
-    
-    # 2. Fetch associated files
-    files_res = supabase.table('printhub_files').select('*').eq('order_id', order_id).execute()
-    if not files_res.data:
-        logger.warning(f"No files found for Order #{order_id[:8]}")
-        supabase.table('printhub_orders').update({'status': 'Error: No Files'}).eq('id', order_id).execute()
-        return
 
     all_printed = True
     for file_record in files_res.data:
@@ -175,26 +110,15 @@ def process_order(order):
             all_printed = False
             continue
 
-        # Print
-        success = print_file(
-            local_filename, 
-            copies=file_record.get('copies', 1), 
-            color_mode=file_record.get('color_mode', 'bw'), 
-            sides=file_record.get('sides', 'single')
-        )
-        if not success:
-            all_printed = False
+        # File is ready for manual printing via local UI.
 
-        # Kept on disk temporarily so the agent can manually print it.
-        # Note: A separate cleanup routine should periodically purge the temp_print_spool folder.
+        # Kept on disk temporarily. The local UI handles deletion.
                 
-    # 3. Update final status
-    if all_printed:
-        supabase.table('printhub_orders').update({'status': 'Printed'}).eq('id', order_id).execute()
-        logger.info(f"Order #{order_id[:8]} completed successfully.")
-    else:
-        supabase.table('printhub_orders').update({'status': 'Print Failed'}).eq('id', order_id).execute()
-        logger.error(f"Order #{order_id[:8]} encountered errors during printing.")
+    # 3. Direct agent to the local print management page
+    import webbrowser
+    url = f"http://localhost:9090/order/{order_id}"
+    logger.info(f"Opening Local Print Router: {url}")
+    webbrowser.open(url)
 
 
 # ==========================================
@@ -216,6 +140,78 @@ def get_system_printers():
 
 class ConfigHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path.startswith('/order/'):
+            order_id = self.path.split('/')[-1]
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            
+            # Fetch files for this order from Supabase
+            files_res = supabase.table('printhub_files').select('*').eq('order_id', order_id).execute()
+            files_html = ""
+            if files_res.data:
+                for f_rec in files_res.data:
+                    local_filename = os.path.join(TEMP_DIR, os.path.basename(f_rec['storage_path']))
+                    file_exists = os.path.exists(local_filename)
+                    status_badge = '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">Ready</span>' if file_exists else '<span class="px-2 py-1 bg-slate-100 text-slate-500 rounded-full text-xs">Deleted</span>'
+                    
+                    files_html += f"""
+                    <div style="border: 1px solid #e2e8f0; padding: 15px; margin-bottom: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: bold; margin-bottom: 5px;">{f_rec['filename']} {status_badge}</div>
+                            <div style="font-size: 14px; color: #64748b;">Type: <strong style="color: {'#3b82f6' if f_rec.get('color_mode') == 'color' else '#475569'}">{str(f_rec.get('color_mode', 'bw')).upper()}</strong> | Copies: <strong>{f_rec.get('copies', 1)}</strong></div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <a href="/file/{os.path.basename(f_rec['storage_path'])}" target="_blank" style="background: #3b82f6; color: white; padding: 8px 16px; text-decoration: none; border-radius: 6px; font-weight: bold;">Print / View</a>
+                        </div>
+                    </div>
+                    """
+            
+            html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Order #{order_id[:8]} - PrintHub</title>
+                <style>
+                    body {{ font-family: -apple-system, system-ui, sans-serif; background: #f8fafc; color: #0f172a; max-width: 800px; margin: 40px auto; padding: 20px; }}
+                    .card {{ background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }}
+                    button {{ background: #ef4444; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; margin-top: 20px; }}
+                    button:hover {{ background: #dc2626; }}
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <h1 style="margin-top: 0;">Incoming Print Order</h1>
+                    <p style="color: #64748b;">Order ID: {order_id}</p>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    
+                    {files_html or "<p>No files found.</p>"}
+                    
+                    <form method="POST" action="/cleanup/{order_id}">
+                        <button type="submit" onclick="return confirm('Are you sure? This will delete the files from your computer.')">Finish Order & Delete Files</button>
+                    </form>
+                </div>
+            </body>
+            </html>
+            """
+            self.wfile.write(html.encode())
+            return
+            
+        if self.path.startswith('/file/'):
+            filename = self.path.split('/')[-1]
+            local_filename = os.path.join(TEMP_DIR, filename)
+            if os.path.exists(local_filename):
+                self.send_response(200)
+                ext = filename.lower().split('.')[-1]
+                content_type = 'application/pdf' if ext == 'pdf' else f'image/{ext}'
+                self.send_header('Content-type', content_type)
+                self.end_headers()
+                with open(local_filename, 'rb') as file:
+                    self.wfile.write(file.read())
+            else:
+                self.send_error(404, "File deleted or not found")
+            return
+
         if self.path == '/':
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
@@ -269,6 +265,27 @@ class ConfigHandler(BaseHTTPRequestHandler):
             self.wfile.write(html.encode())
             
     def do_POST(self):
+        if self.path.startswith('/cleanup/'):
+            order_id = self.path.split('/')[-1]
+            # Delete local files for this order
+            files_res = supabase.table('printhub_files').select('storage_path').eq('order_id', order_id).execute()
+            if files_res.data:
+                for f_rec in files_res.data:
+                    local_filename = os.path.join(TEMP_DIR, os.path.basename(f_rec['storage_path']))
+                    if os.path.exists(local_filename):
+                        try:
+                            os.remove(local_filename)
+                            logger.info(f"Deleted {local_filename}")
+                        except: pass
+            
+            # Update status
+            supabase.table('printhub_orders').update({'status': 'Printed'}).eq('id', order_id).execute()
+            
+            self.send_response(303)
+            self.send_header('Location', f'/order/{order_id}')
+            self.end_headers()
+            return
+            
         if self.path == '/save':
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length).decode()
