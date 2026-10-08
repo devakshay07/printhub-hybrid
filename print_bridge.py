@@ -369,15 +369,17 @@ def main():
                 vbs_path = os.path.join(startup_dir, 'PrintHubBridge.vbs')
                 exe_path = sys.executable
                 if exe_path.endswith('.exe'):
-                    vbs_content = f'Set WshShell = CreateObject("WScript.Shell")\nWshShell.Run chr(34) & "{exe_path}" & Chr(34), 0\nSet WshShell = Nothing'
-                    with open(vbs_path, 'w') as f:
-                        f.write(vbs_content)
+                    # Create a visible batch file instead of hidden VBS
+                    bat_path = os.path.join(startup_dir, 'PrintHubBridge.bat')
+                    bat_content = f'@echo off\nstart "" "{exe_path}"'
+                    with open(bat_path, 'w') as f:
+                        f.write(bat_content)
                         
-                    # Add to Windows Registry for ultimate reliability
+                    # Add to Windows Registry directly to launch the visible .exe
                     try:
                         import winreg
                         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run', 0, winreg.KEY_SET_VALUE)
-                        winreg.SetValueEx(key, 'PrintHubBridge', 0, winreg.REG_SZ, f'wscript.exe "{vbs_path}"')
+                        winreg.SetValueEx(key, 'PrintHubBridge', 0, winreg.REG_SZ, f'"{exe_path}"')
                         winreg.CloseKey(key)
                     except Exception as reg_e:
                         logger.warning(f"Failed to set Registry key (non-fatal): {reg_e}")
