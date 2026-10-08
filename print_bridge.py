@@ -398,7 +398,9 @@ def process_order(order):
                     # Edge is permanently baked into Windows 10/11. It has an enterprise-grade PDF/Image 
                     # viewer with a robust Chromium print dialog (Ctrl+P).
                     # This completely bypasses OEM bloatware like Samsung Gallery or Samsung Notes.
-                    subprocess.run(['cmd', '/c', 'start', 'msedge', f'"{abs_path}"'], shell=True)
+                    # Convert to a proper file URI to prevent Windows CMD from mangling the quotes
+                    file_uri = f"file:///{abs_path.replace(chr(92), '/')}"
+                    subprocess.run(f'start "" msedge "{file_uri}"', shell=True)
                 except Exception as ex1:
                     subprocess.run(['explorer.exe', abs_path])
             else:
