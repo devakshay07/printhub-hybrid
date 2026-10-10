@@ -58,6 +58,12 @@ def ensure_sumatra():
     with zipfile.ZipFile(zip_path, 'r') as z:
         z.extractall(sumatra_dir)
         
+    # Sumatra portable puts 'SumatraPDF-something.exe' inside. Rename it to SumatraPDF.exe
+    for file in os.listdir(sumatra_dir):
+        if file.lower().endswith('.exe') and file != "SumatraPDF.exe":
+            os.rename(os.path.join(sumatra_dir, file), sumatra_exe)
+            break
+            
     try:
         os.remove(zip_path)
     except: pass
