@@ -64,6 +64,19 @@ def ensure_sumatra():
     
     return sumatra_exe
 
+
+def get_printers():
+    if platform.system() != "Windows":
+        return ["Default Printer"]
+    try:
+        # Fast, robust way to get all Windows printers
+        result = subprocess.run(['powershell', '-Command', 'Get-Printer | Select-Object -ExpandProperty Name'], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0)
+        printers = [p.strip() for p in result.stdout.split('\n') if p.strip()]
+        return printers if printers else ["Default Printer"]
+    except Exception as e:
+        logger.error(f"Failed to fetch printers: {e}")
+        return ["Default Printer"]
+
 def get_hwid():
     system = platform.system()
     hw_string = ""
@@ -441,7 +454,27 @@ def process_order(order):
             if print_mode == 'auto' and sumatra_exe:
                 # Silently auto-print via Sumatra PDF
                 color_flag = "color" if is_color else "monochrome"
-                cmd = f'"{sumatra_exe}" -print-to-default -print-settings "{copies}x,{color_flag}" "{abs_path}"'
+                
+                # Retrieve the selected printer from the global variable (fetched during heartbeat)
+                # We need to access selected_printer from the outer scope safely
+                global_selected_printer = None
+                try:
+                    # In this scope, selected_printer is in the main() while loop, but process_order is a separate function.
+                    # We must fetch the latest directly from DB or pass it.
+                    # It's cleaner to fetch it here for absolute safety:
+                    latest_shop = supabase.table('printhub_shops').select('active_device_id').eq('id', order['shop_id']).execute()
+                    import json
+                    if latest_shop.data and latest_shop.data[0].get('active_device_id', '').startswith('{'):
+                        conf = json.loads(latest_shop.data[0]['active_device_id'])
+                        global_selected_printer = conf.get('selected_printer')
+                except Exception as e:
+                    logger.warning(f"Could not read selected printer: {e}")
+                
+                if global_selected_printer and global_selected_printer != "Default Printer":
+                    cmd = f'"{sumatra_exe}" -print-to "{global_selected_printer}" -print-settings "{copies}x,{color_flag}" "{abs_path}"'
+                else:
+                    cmd = f'"{sumatra_exe}" -print-to-default -print-settings "{copies}x,{color_flag}" "{abs_path}"'
+                    
                 subprocess.run(cmd, shell=True)
                 logger.info(f"{Colors.GREEN}Successfully spooled {fname} to default printer.{Colors.RESET}")
             else:
@@ -559,7 +592,9 @@ def main():
         
         if not base_hwid:
             # First time login on this shop - lock it to this device
-            supabase.table('printhub_shops').update({'active_device_id': f"{HWID}|{int(time.time())}"}).eq('id', shop_id).execute()
+            import json
+            initial_payload = {"hwid": HWID, "ts": int(time.time()), "printers": get_printers(), "selected_printer": None}
+            supabase.table('printhub_shops').update({'active_device_id': json.dumps(initial_payload)}).eq('id', shop_id).execute()
             logger.info(f"Shop locked to this Hardware ID: {HWID}")
         elif base_hwid != HWID:
             # Device mismatch! Reject login.
@@ -585,13 +620,10 @@ def main():
         try:
             current_time = int(time.time())
             
-            # Send Heartbeat every 15 seconds to keep the Dashboard "Online" meter green
-            if current_time - last_heartbeat_time >= 15:
-                supabase.table('printhub_shops').update({'active_device_id': f"{HWID}|{current_time}"}).eq('id', shop_id).execute()
-                last_heartbeat_time = current_time
-
-            # 1. Hardware Heartbeat & Killswitch Check
+            # 1. Hardware Heartbeat & Killswitch Check (Fetch First)
             heartbeat_res = supabase.table('printhub_shops').select('active_device_id, is_active').eq('id', shop_id).execute()
+            
+            selected_printer = None
             if heartbeat_res.data:
                 shop_status = heartbeat_res.data[0]
                 if not shop_status.get('is_active'):
@@ -599,7 +631,35 @@ def main():
                     time.sleep(30)
                     continue
                 
-                fetched_hwid = str(shop_status.get('active_device_id', '')).split('|')[0]
+                device_data_str = str(shop_status.get('active_device_id', ''))
+                # Handle legacy pipe format or new JSON format
+                if device_data_str.startswith('{'):
+                    import json
+                    try:
+                        device_data = json.loads(device_data_str)
+                        fetched_hwid = device_data.get('hwid')
+                        selected_printer = device_data.get('selected_printer')
+                    except:
+                        fetched_hwid = device_data_str.split('|')[0]
+                else:
+                    fetched_hwid = device_data_str.split('|')[0]
+                
+                if fetched_hwid != HWID:
+                    logger.error("Account logged in from another computer. Device access revoked. Exiting.")
+                    break
+                    
+            # Send Advanced Telemetry Heartbeat every 15 seconds
+            if current_time - last_heartbeat_time >= 15:
+                import json
+                printers = get_printers()
+                payload = {
+                    "hwid": HWID,
+                    "ts": current_time,
+                    "printers": printers,
+                    "selected_printer": selected_printer if selected_printer in printers else (printers[0] if printers else None)
+                }
+                supabase.table('printhub_shops').update({'active_device_id': json.dumps(payload)}).eq('id', shop_id).execute()
+                last_heartbeat_time = current_time
                 if fetched_hwid != HWID:
                     logger.error("Account logged in from another computer. Device access revoked. Exiting.")
                     break
