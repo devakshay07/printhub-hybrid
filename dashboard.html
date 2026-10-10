@@ -273,11 +273,19 @@
             const shopRes = await supabaseFetch(`/rest/v1/printhub_shops?id=eq.${shopId}&select=active_device_id`);
             if (shopRes && shopRes.length > 0) {
                 const hwidStr = shopRes[0].active_device_id || '';
-                const parts = hwidStr.split('|');
                 const serverStatus = document.getElementById('server-status');
+                
                 if (serverStatus) {
-                    if (parts.length > 1) {
-                        const lastHeartbeat = parseInt(parts[1], 10);
+                    let lastHeartbeat = 0;
+                    if (hwidStr.startsWith('{')) {
+                        try {
+                            lastHeartbeat = parseInt(JSON.parse(hwidStr).ts || '0', 10);
+                        } catch(e) {}
+                    } else if (hwidStr.includes('|')) {
+                        lastHeartbeat = parseInt(hwidStr.split('|')[1] || '0', 10);
+                    }
+                    
+                    if (lastHeartbeat > 0) {
                         const now = Math.floor(Date.now() / 1000);
                         if (now - lastHeartbeat < 30) {
                             serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200";
