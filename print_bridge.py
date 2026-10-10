@@ -154,47 +154,6 @@ def get_local_config():
             logger.error(f"Error reading config: {e}")
     return {"printer_bw": "", "printer_color": ""}
 
-
-
-    all_printed = True
-    for file_record in files_res.data:
-        storage_path = file_record['storage_path']
-        local_filename = os.path.join(TEMP_DIR, os.path.basename(storage_path))
-        
-        # Security: Prevent printing malware or unsupported types
-        ext = os.path.splitext(local_filename)[1].lower()
-        if ext not in ['.pdf', '.png', '.jpg', '.jpeg']:
-            logger.error(f"Security Error: Unsupported file format {ext} for {storage_path}")
-            all_printed = False
-            continue
-
-        # Download (Authenticated)
-        logger.info(f"Downloading {storage_path}...")
-        try:
-            # We use the native supabase python client which uses the auth session
-            file_bytes = supabase.storage.from_('print-files').download(storage_path)
-            if len(file_bytes) > 50 * 1024 * 1024:
-                logger.error(f"File {storage_path} exceeds 50MB limit. DoS blocked.")
-                all_printed = False
-                continue
-            with open(local_filename, 'wb') as f:
-                f.write(file_bytes)
-        except Exception as e:
-            logger.error(f"Network error downloading {storage_path}: {e}")
-            all_printed = False
-            continue
-
-        # File is ready for manual printing via local UI.
-
-        # Kept on disk temporarily. The local UI handles deletion.
-                
-    # 3. Direct agent to the local print management page
-    import webbrowser
-    url = f"http://localhost:9090/order/{order_id}"
-    logger.info(f"Opening Local Print Router: {url}")
-    webbrowser.open(url)
-
-
 # ==========================================
 # LOCAL CONFIGURATION SERVER (LOCALHOST:9090)
 # ==========================================
@@ -379,6 +338,24 @@ class ConfigHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass # Suppress HTTP logs to keep terminal clean
 
+def garbage_collector():
+    """Background thread to delete manual-preview PDFs older than 15 minutes"""
+    import time
+    while True:
+        try:
+            now = time.time()
+            for filename in os.listdir(TEMP_DIR):
+                file_path = os.path.join(TEMP_DIR, filename)
+                if os.path.isfile(file_path):
+                    if os.stat(file_path).st_mtime < now - 900:
+                        try:
+                            os.remove(file_path)
+                            logger.info(f"Garbage collected old file: {filename}")
+                        except: pass
+        except Exception:
+            pass
+        time.sleep(300)
+
 def run_local_server():
     try:
         server = HTTPServer(('127.0.0.1', 9090), ConfigHandler)
@@ -505,7 +482,25 @@ def process_order(order):
         except Exception as e:
             logger.error(f"Failed to process {fname}: {e}")
             
-    # Auto-cleanup thread is handling the deletion.
+    # 4. Zero-Trace Privacy Cleanup
+    # Clear from Supabase Storage
+    try:
+        storage_paths = [f['storage_path'] for f in files_res.data]
+        if storage_paths:
+            supabase.storage.from_('print-files').remove(storage_paths)
+            logger.info("Cleared files from Supabase cloud storage.")
+    except Exception as e:
+        logger.error(f"Failed to clear cloud storage: {e}")
+        
+    # Clear from local disk (if auto mode). Manual mode relies on the garbage collector.
+    if print_mode == 'auto':
+        for f_rec in files_res.data:
+            local_path = os.path.join(TEMP_DIR, os.path.basename(f_rec['storage_path']))
+            if os.path.exists(local_path):
+                try:
+                    os.remove(local_path)
+                except: pass
+
     supabase.table('printhub_orders').update({'status': 'Printed'}).eq('id', order_id).execute()
     logger.info(f"Order #{order_id[:8]} marked as printed. Awaiting next order...")
 
@@ -634,8 +629,9 @@ def main():
         
     logger.info(f"Bridge Active for Shop ID: {shop_id}")
     
-    # Spin up local config UI
+    # Spin up local config UI and Garbage Collector
     threading.Thread(target=run_local_server, daemon=True).start()
+    threading.Thread(target=garbage_collector, daemon=True).start()
     
     logger.info("Polling for approved print jobs...")
     
