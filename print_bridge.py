@@ -73,8 +73,7 @@ def get_printers():
         # Strict hardware filter: Only grab printers where WorkOffline is False
         ps_cmd = 'Get-WmiObject -Class Win32_Printer | Where-Object { $_.WorkOffline -eq $false } | Select-Object -ExpandProperty Name'
         result = subprocess.run(['powershell', '-Command', ps_cmd], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0)
-        printers = [p.strip() for p in result.stdout.split('
-') if p.strip()]
+        printers = [p.strip() for p in result.stdout.split('\n') if p.strip()]
         return printers if printers else ["Default Printer"]
     except Exception as e:
         logger.error(f"Failed to fetch live printers: {e}")
@@ -87,7 +86,7 @@ def get_hwid():
         if system == "Darwin":
             result = subprocess.run(['ioreg', '-rd1', '-c', 'IOPlatformExpertDevice'], capture_output=True, text=True)
             for line in result.stdout.split('\n'):
-                if 'IOPlatformUUID' in line:
+                if "IOPlatformUUID" in line:
                     hw_string = line.split('=')[1].strip().strip('"')
                     break
         elif system == "Windows":
