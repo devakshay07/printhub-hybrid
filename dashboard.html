@@ -11,6 +11,13 @@
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .hide { display: none !important; }
     </style>
+    <style>
+        body.modal-open iframe {
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+    </style>
 </head>
 <body>
 
@@ -463,6 +470,7 @@
 
     window.openSettings = async function() {
         if (!shopId) return alert("Shop not loaded");
+        document.body.classList.add('modal-open');
         document.getElementById('settings-modal').classList.remove('hidden');
         document.getElementById('settings-modal').classList.add('flex');
         
@@ -492,6 +500,7 @@
     }
 
     window.closeSettings = function() {
+        document.body.classList.remove('modal-open');
         document.getElementById('settings-modal').classList.add('hidden');
         document.getElementById('settings-modal').classList.remove('flex');
     }
