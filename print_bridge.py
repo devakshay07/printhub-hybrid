@@ -69,12 +69,14 @@ def get_printers():
     if platform.system() != "Windows":
         return ["Default Printer"]
     try:
-        # Fast, robust way to get all Windows printers
-        result = subprocess.run(['powershell', '-Command', 'Get-Printer | Select-Object -ExpandProperty Name'], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0)
-        printers = [p.strip() for p in result.stdout.split('\n') if p.strip()]
+        # Get all printers using WMI to ensure we only get valid queues
+        ps_cmd = 'Get-WmiObject -Class Win32_Printer | Select-Object -ExpandProperty Name'
+        result = subprocess.run(['powershell', '-Command', ps_cmd], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0)
+        printers = [p.strip() for p in result.stdout.split('
+') if p.strip()]
         return printers if printers else ["Default Printer"]
     except Exception as e:
-        logger.error(f"Failed to fetch printers: {e}")
+        logger.error(f"Failed to fetch live printers: {e}")
         return ["Default Printer"]
 
 def get_hwid():
@@ -421,8 +423,23 @@ def process_order(order):
         except Exception as e:
             logger.error(f"Download failed for {storage_path}: {e}")
             
-    # 3. Print or Preview based on mode
-    print_mode = order.get('notes') or 'manual'
+    # 3. Print or Preview based on mode (Parse JSON Routing Payload)
+    print_mode = 'manual'
+    bw_target = None
+    color_target = None
+    
+    notes_raw = order.get('notes') or ''
+    if notes_raw.startswith('{'):
+        import json
+        try:
+            route_data = json.loads(notes_raw)
+            print_mode = route_data.get('mode', 'manual')
+            bw_target = route_data.get('bw_printer')
+            color_target = route_data.get('color_printer')
+        except:
+            print_mode = 'manual'
+    else:
+        print_mode = notes_raw if notes_raw else 'manual'
     
     sumatra_exe = None
     if print_mode == 'auto' and platform.system() == "Windows":
@@ -452,31 +469,19 @@ def process_order(order):
         try:
             abs_path = os.path.abspath(local_path)
             if print_mode == 'auto' and sumatra_exe:
-                # Silently auto-print via Sumatra PDF
+                # Silently auto-print via Sumatra PDF using Dynamic Split-Routing
                 color_flag = "color" if is_color else "monochrome"
+                target_printer = color_target if is_color else bw_target
                 
-                # Retrieve the selected printer from the global variable (fetched during heartbeat)
-                # We need to access selected_printer from the outer scope safely
-                global_selected_printer = None
-                try:
-                    # In this scope, selected_printer is in the main() while loop, but process_order is a separate function.
-                    # We must fetch the latest directly from DB or pass it.
-                    # It's cleaner to fetch it here for absolute safety:
-                    latest_shop = supabase.table('printhub_shops').select('active_device_id').eq('id', order['shop_id']).execute()
-                    import json
-                    if latest_shop.data and latest_shop.data[0].get('active_device_id', '').startswith('{'):
-                        conf = json.loads(latest_shop.data[0]['active_device_id'])
-                        global_selected_printer = conf.get('selected_printer')
-                except Exception as e:
-                    logger.warning(f"Could not read selected printer: {e}")
-                
-                if global_selected_printer and global_selected_printer != "Default Printer":
-                    cmd = f'"{sumatra_exe}" -print-to "{global_selected_printer}" -print-settings "{copies}x,{color_flag}" "{abs_path}"'
+                if target_printer and target_printer != "Default Printer":
+                    cmd = f'"{sumatra_exe}" -print-to "{target_printer}" -print-settings "{copies}x,{color_flag}" "{abs_path}"'
+                    logger.info(f"{Colors.GREEN}Routing to hardware: {target_printer}{Colors.RESET}")
                 else:
                     cmd = f'"{sumatra_exe}" -print-to-default -print-settings "{copies}x,{color_flag}" "{abs_path}"'
+                    logger.info(f"{Colors.GREEN}Routing to Default Windows Printer{Colors.RESET}")
                     
                 subprocess.run(cmd, shell=True)
-                logger.info(f"{Colors.GREEN}Successfully spooled {fname} to default printer.{Colors.RESET}")
+                logger.info(f"{Colors.GREEN}Successfully spooled {fname}.{Colors.RESET}")
             else:
                 # Manual Preview in Edge
                 if platform.system() == "Windows":

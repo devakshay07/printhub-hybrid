@@ -472,34 +472,7 @@
             if (shopRes && shopRes.length > 0) {
                 document.getElementById('set_shop_name').value = shopRes[0].shop_name || '';
         
-        // Parse Telemetry Payload for Printers
-        const deviceDataStr = shopRes[0].active_device_id || '';
-        const printerSelect = document.getElementById('set_target_printer');
-        try {
-            if (deviceDataStr.startsWith('{')) {
-                const telemetry = JSON.parse(deviceDataStr);
-                const printers = telemetry.printers || [];
-                const selected = telemetry.selected_printer || '';
-                
-                printerSelect.innerHTML = '';
-                if (printers.length === 0) {
-                    printerSelect.innerHTML = '<option value="">No printers detected</option>';
-                } else {
-                    printerSelect.innerHTML = '<option value="Default Printer">Windows Default Printer</option>';
-                    printers.forEach(p => {
-                        const opt = document.createElement('option');
-                        opt.value = p;
-                        opt.textContent = p;
-                        if (p === selected) opt.selected = true;
-                        printerSelect.appendChild(opt);
-                    });
-                }
-            } else {
-                printerSelect.innerHTML = '<option value="">Telemetry not active. Run Windows Engine.</option>';
-            }
-        } catch(e) {
-            console.error("Telemetry parse failed", e);
-        }
+
 
                 document.getElementById('set_location').value = shopRes[0].location || '';
                 document.getElementById('set_logo_url').value = shopRes[0].logo_url || '';
@@ -716,20 +689,6 @@
                                 <label class="block text-xs font-bold text-slate-500 mb-1">Logo URL (Optional)</label>
                                 <input type="url" id="set_logo_url" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-blue-600 outline-none">
                             </div>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <h3 class="text-sm font-bold text-slate-900 mb-3 border-b pb-1">Hardware Routing (Live)</h3>
-                        <div class="mb-4 bg-blue-50 border border-blue-100 p-3 rounded-lg flex items-center justify-between">
-                            <div>
-                                <label class="block text-xs font-bold text-blue-800 mb-1">Target Auto-Printer</label>
-                                <select id="set_target_printer" class="w-full bg-white border border-blue-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:border-blue-600 outline-none">
-                                    <option value="">Fetching hardware telemetry...</option>
-                                </select>
-                                <p class="text-[10px] text-blue-600 mt-1">This dynamically maps to the physical printers attached to your Windows PC.</p>
-                            </div>
-                            <i data-lucide="printer" class="w-8 h-8 text-blue-400 opacity-50 mx-2"></i>
                         </div>
                     </div>
                     
