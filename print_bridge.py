@@ -30,6 +30,40 @@ class Colors:
     BOLD = '\033[1m'
     RESET = '\033[0m'
 
+
+import urllib.request
+import zipfile
+
+def ensure_sumatra():
+    sumatra_dir = os.path.join(_base_dir, "sumatra")
+    sumatra_exe = os.path.join(sumatra_dir, "SumatraPDF.exe")
+    if os.path.exists(sumatra_exe):
+        return sumatra_exe
+        
+    logger.info("Downloading SumatraPDF Auto-Print Engine...")
+    os.makedirs(sumatra_dir, exist_ok=True)
+    zip_path = os.path.join(sumatra_dir, "sumatra.zip")
+    
+    # We use a reliable mirror for the portable 64-bit build
+    url = "https://www.sumatrapdfreader.org/dl/rel/3.5.2/SumatraPDF-3.5.2-64.zip"
+    try:
+        import requests
+        r = requests.get(url, verify=False)
+        with open(zip_path, 'wb') as f:
+            f.write(r.content)
+    except Exception as e:
+        logger.error(f"Failed to download SumatraPDF: {e}")
+        return None
+        
+    with zipfile.ZipFile(zip_path, 'r') as z:
+        z.extractall(sumatra_dir)
+        
+    try:
+        os.remove(zip_path)
+    except: pass
+    
+    return sumatra_exe
+
 def get_hwid():
     system = platform.system()
     hw_string = ""
@@ -374,39 +408,54 @@ def process_order(order):
         except Exception as e:
             logger.error(f"Download failed for {storage_path}: {e}")
             
-    # 3. Open files natively for print preview and manual printing
+    # 3. Print or Preview based on mode
+    print_mode = order.get('notes') or 'manual'
+    
+    sumatra_exe = None
+    if print_mode == 'auto' and platform.system() == "Windows":
+        sumatra_exe = ensure_sumatra()
+        if not sumatra_exe:
+            logger.warning("Failed to setup Auto-Print. Falling back to manual mode.")
+            print_mode = 'manual'
+            
     for f_rec in files_res.data:
         fname = os.path.basename(f_rec['storage_path'])
         local_path = os.path.join(TEMP_DIR, fname)
         if not os.path.exists(local_path):
             continue
             
-        color_str = f"{Colors.BLUE}[COLOR]{Colors.RESET}" if f_rec.get('color_mode') == 'color' else f"{Colors.BOLD}[B&W]{Colors.RESET}"
+        is_color = f_rec.get('color_mode') == 'color'
+        color_str = f"{Colors.BLUE}[COLOR]{Colors.RESET}" if is_color else f"{Colors.BOLD}[B&W]{Colors.RESET}"
         copies = f_rec.get('copies', 1)
         
-        print(f"\n{Colors.CYAN}========================================={Colors.RESET}")
-        print(f"{Colors.YELLOW}🖨️  OPENING PRINT PREVIEW{Colors.RESET}")
+        print("")
+        print(f"{Colors.CYAN}========================================={Colors.RESET}")
+        print(f"{Colors.YELLOW}🖨️  PROCESSING FILE ({print_mode.upper()}){Colors.RESET}")
         print(f"File: {Colors.BOLD}{fname}{Colors.RESET}")
-        print(f"Required Settings: {color_str} | {copies} Copies")
-        print(f"{Colors.CYAN}========================================={Colors.RESET}\n")
+        print(f"Settings: {color_str} | {copies} Copies")
+        print(f"{Colors.CYAN}========================================={Colors.RESET}")
+        print("")
         
         try:
             abs_path = os.path.abspath(local_path)
-            if platform.system() == "Windows":
-                try:
-                    # WORA Preview Hack: Force the file into Microsoft Edge (Chromium).
-                    # Edge is permanently baked into Windows 10/11. It has an enterprise-grade PDF/Image 
-                    # viewer with a robust Chromium print dialog (Ctrl+P).
-                    # This completely bypasses OEM bloatware like Samsung Gallery or Samsung Notes.
-                    # Convert to a proper file URI to prevent Windows CMD from mangling the quotes
-                    file_uri = f"file:///{abs_path.replace(chr(92), '/')}"
-                    subprocess.run(f'start "" msedge "{file_uri}"', shell=True)
-                except Exception as ex1:
-                    subprocess.run(['explorer.exe', abs_path])
+            if print_mode == 'auto' and sumatra_exe:
+                # Silently auto-print via Sumatra PDF
+                color_flag = "color" if is_color else "monochrome"
+                cmd = f'"{sumatra_exe}" -print-to-default -print-settings "{copies}x,{color_flag}" "{abs_path}"'
+                subprocess.run(cmd, shell=True)
+                logger.info(f"{Colors.GREEN}Successfully spooled {fname} to default printer.{Colors.RESET}")
             else:
-                subprocess.run(['open', abs_path])
+                # Manual Preview in Edge
+                if platform.system() == "Windows":
+                    try:
+                        file_uri = f"file:///{abs_path.replace(chr(92), '/')}"
+                        subprocess.run(f'start "" msedge "{file_uri}"', shell=True)
+                    except Exception as ex1:
+                        subprocess.run(['explorer.exe', abs_path])
+                else:
+                    subprocess.run(['open', abs_path])
         except Exception as e:
-            logger.error(f"Failed to open {fname}: {e}")
+            logger.error(f"Failed to process {fname}: {e}")
             
     # Auto-cleanup thread is handling the deletion.
     supabase.table('printhub_orders').update({'status': 'Printed'}).eq('id', order_id).execute()
