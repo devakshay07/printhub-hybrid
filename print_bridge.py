@@ -473,14 +473,18 @@ def process_order(order):
                 color_flag = "color" if is_color else "monochrome"
                 target_printer = color_target if is_color else bw_target
                 
+                cmd_args = [sumatra_exe]
                 if target_printer and target_printer != "Default Printer":
-                    cmd = f'"{sumatra_exe}" -print-to "{target_printer}" -print-settings "{copies}x,{color_flag}" "{abs_path}"'
+                    cmd_args.extend(["-print-to", target_printer])
                     logger.info(f"{Colors.GREEN}Routing to hardware: {target_printer}{Colors.RESET}")
                 else:
-                    cmd = f'"{sumatra_exe}" -print-to-default -print-settings "{copies}x,{color_flag}" "{abs_path}"'
+                    cmd_args.extend(["-print-to-default"])
                     logger.info(f"{Colors.GREEN}Routing to Default Windows Printer{Colors.RESET}")
-                    
-                subprocess.run(cmd, shell=True)
+                
+                cmd_args.extend(["-print-settings", f"{copies}x,{color_flag}", abs_path])
+                
+                # Execute using a list to completely bypass cmd.exe quote-stripping corruption
+                subprocess.run(cmd_args, shell=False)
                 logger.info(f"{Colors.GREEN}Successfully spooled {fname}.{Colors.RESET}")
             else:
                 # Manual Preview in Edge
