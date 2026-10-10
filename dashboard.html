@@ -589,10 +589,54 @@
                             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-colors">Verify & Print</button>
                         </form>
                     `;
-                } else {
+                } else if (order.status === 'Pending') {
+                    // Retrieve last used selections from localStorage for convenience
+                    const savedBw = localStorage.getItem('last_bw_printer') || '';
+                    const savedColor = localStorage.getItem('last_color_printer') || '';
+
+                    // Populate options from global telemetry
+                    let bwOptions = '<option value="">Default Printer</option>';
+                    let colorOptions = '<option value="">Default Printer</option>';
+                    
+                    if (window.globalPrinters && window.globalPrinters.length > 0) {
+                        bwOptions = window.globalPrinters.map(p => `<option value="${p}" ${p === savedBw ? 'selected' : ''}>${p}</option>`).join('');
+                        colorOptions = window.globalPrinters.map(p => `<option value="${p}" ${p === savedColor ? 'selected' : ''}>${p}</option>`).join('');
+                    }
+
                     otpSection = `
-                        <div class="mt-4 flex items-center justify-center gap-2 bg-green-50 text-green-700 p-3 rounded-lg border border-green-200 font-bold">
-                            <i data-lucide="check-circle" class="w-5 h-5"></i> PIN Verified - Sent to Printer
+                        <div class="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-inner">
+                            <div class="text-xs font-bold text-green-600 text-center mb-3 flex items-center justify-center gap-1">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i> OTP Verified
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">⚫ Dedicated B&W Printer</label>
+                                <select id="route_bw_${order.id}" class="w-full text-xs p-2 bg-white border border-slate-300 rounded focus:border-slate-500 outline-none">
+                                    ${bwOptions}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-[10px] font-black text-blue-500 uppercase tracking-wider mb-1">🌈 Dedicated Color Printer</label>
+                                <select id="route_color_${order.id}" class="w-full text-xs p-2 bg-white border border-blue-200 rounded focus:border-blue-500 outline-none">
+                                    ${colorOptions}
+                                </select>
+                            </div>
+                            
+                            <div class="flex gap-2">
+                                <button onclick="executeRouting('${order.id}', 'auto')" class="flex-1 bg-slate-900 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors shadow-md flex items-center justify-center gap-2">
+                                    ⚡ Spool Jobs
+                                </button>
+                                <button onclick="executeRouting('${order.id}', 'manual')" class="bg-white border border-slate-300 text-slate-600 py-2.5 px-3 rounded-lg text-sm font-bold hover:bg-slate-100 transition-colors" title="Manual Preview in Edge">
+                                    <i data-lucide="external-link" class="w-4 h-4"></i> Edge
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else if (order.status === 'Paid') {
+                    otpSection = `
+                        <div class="mt-4 flex items-center justify-center gap-2 bg-green-50 text-green-700 p-3 rounded-lg border border-green-200 font-bold shadow-sm">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i> Spooled to Hardware
                         </div>
                     `;
                 }
