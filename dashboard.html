@@ -409,6 +409,39 @@
         document.body.removeChild(a);
     }
 
+    window.executeRouting = async function(orderId, mode) {
+        try {
+            const bwEl = document.getElementById(`route_bw_${orderId}`);
+            const colorEl = document.getElementById(`route_color_${orderId}`);
+            
+            const bwTarget = bwEl ? bwEl.value : null;
+            const colorTarget = colorEl ? colorEl.value : null;
+            
+            if (bwTarget) localStorage.setItem('last_bw_printer', bwTarget);
+            if (colorTarget) localStorage.setItem('last_color_printer', colorTarget);
+
+            let oldNotes = '';
+            try {
+                const currentOrder = await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}&select=notes`);
+                if (currentOrder && currentOrder.length > 0 && currentOrder[0].notes && !currentOrder[0].notes.startsWith('{')) {
+                    oldNotes = currentOrder[0].notes;
+                }
+            } catch(e) {}
+
+            const payload = JSON.stringify({
+                original_notes: oldNotes,
+                mode: mode,
+                bw_printer: bwTarget,
+                color_printer: colorTarget
+            });
+
+            await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}`, 'PATCH', { status: 'Paid', notes: payload });
+            fetchOrders();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
     window.cancelOrder = function(orderId) {
         if(confirm("Are you sure you want to cancel this order? This action cannot be undone.")) {
             updateOrderStatus(orderId, 'Cancelled');
