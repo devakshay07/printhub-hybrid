@@ -597,7 +597,16 @@ def main():
         shop_info = supabase.table('printhub_shops').select('active_device_id').eq('id', shop_id).execute()
         current_hwid = shop_info.data[0].get('active_device_id')
         
-        base_hwid = current_hwid.split('|')[0] if current_hwid else None
+        base_hwid = None
+        if current_hwid:
+            if current_hwid.startswith('{'):
+                import json
+                try:
+                    base_hwid = json.loads(current_hwid).get('hwid')
+                except:
+                    pass
+            else:
+                base_hwid = current_hwid.split('|')[0]
         
         if not base_hwid:
             # First time login on this shop - lock it to this device
