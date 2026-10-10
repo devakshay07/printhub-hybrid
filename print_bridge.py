@@ -70,7 +70,8 @@ def get_printers():
         return ["Default Printer"]
     try:
         # Get all printers using WMI to ensure we only get valid queues
-        ps_cmd = 'Get-WmiObject -Class Win32_Printer | Select-Object -ExpandProperty Name'
+        # Strict hardware filter: Only grab printers where WorkOffline is False
+        ps_cmd = 'Get-WmiObject -Class Win32_Printer | Where-Object { $_.WorkOffline -eq $false } | Select-Object -ExpandProperty Name'
         result = subprocess.run(['powershell', '-Command', ps_cmd], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0)
         printers = [p.strip() for p in result.stdout.split('
 ') if p.strip()]
