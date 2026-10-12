@@ -59,13 +59,19 @@
                     <i data-lucide="printer" class="text-white w-6 h-6"></i>
                 </div>
                 <div>
-                    <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                    <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3 flex-wrap">
                         PrintHub Terminal
                         <span id="server-status" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
                             <span class="w-2 h-2 rounded-full bg-slate-400"></span> Offline
                         </span>
+                        <span id="sub-status" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                            <span class="w-2 h-2 rounded-full bg-slate-400"></span> Checking plan...
+                        </span>
                     </h1>
-                    <p class="text-sm font-medium text-slate-500" id="shop-name">Loading shop...</p>
+                    <p class="text-sm font-medium text-slate-500 flex items-center gap-2 flex-wrap" id="shop-name-container">
+                        <span id="shop-name">Loading shop...</span>
+                        <span id="sub-days-text" class="text-xs font-bold"></span>
+                    </p>
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-wrap justify-end">
@@ -248,14 +254,169 @@
         if(refreshInterval) clearInterval(refreshInterval);
     });
 
+    let isSubscriptionBlocked = false;
+    let currentShop = null;
+
+    function evaluateSubscription(shop) {
+        if (!shop) return;
+        currentShop = shop;
+        const lockContainer = document.getElementById('lock-container');
+        const subStatus = document.getElementById('sub-status');
+        const subDaysText = document.getElementById('sub-days-text');
+        const ordersContainer = document.getElementById('orders-container');
+        const emptyState = document.getElementById('empty-state');
+        if (!lockContainer) return;
+
+        // 1. Manually Suspended by Superadmin
+        if (shop.is_active === false) {
+            isSubscriptionBlocked = true;
+            if (subStatus) {
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-300";
+                subStatus.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-600"></span> Suspended';
+            }
+            if (subDaysText) {
+                subDaysText.className = "text-xs font-bold text-red-600";
+                subDaysText.textContent = "• Account Suspended by Admin";
+            }
+            lockContainer.innerHTML = `
+                <div class="bg-red-50 border-2 border-red-500 rounded-3xl p-6 sm:p-8 mb-8 shadow-xl text-center">
+                    <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-200">
+                        <i data-lucide="shield-alert" class="w-8 h-8"></i>
+                    </div>
+                    <h2 class="text-2xl font-black text-red-800 tracking-tight mb-2">ACCOUNT SUSPENDED</h2>
+                    <p class="text-red-700 font-medium text-sm max-w-lg mx-auto mb-4">
+                        Your shop account has been deactivated by the platform administrator. All print processing is completely paused.
+                    </p>
+                    <div class="inline-block bg-white border border-red-200 rounded-xl px-4 py-2 text-xs font-bold text-red-800 shadow-sm">
+                        Contact Superadmin to restore access.
+                    </div>
+                </div>
+            `;
+            if (ordersContainer) ordersContainer.innerHTML = '';
+            if (emptyState) emptyState.classList.add('hide');
+            if (window.lucide) { try { lucide.createIcons(); } catch(e){} }
+            return;
+        }
+
+        // 2. Permanent Enterprise License
+        if (!shop.subscription_expiry) {
+            isSubscriptionBlocked = false;
+            if (subStatus) {
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200";
+                subStatus.innerHTML = '<i data-lucide="infinity" class="w-3.5 h-3.5"></i> Enterprise Permanent';
+            }
+            if (subDaysText) {
+                subDaysText.className = "text-xs font-bold text-blue-600";
+                subDaysText.textContent = "• Permanent License";
+            }
+            lockContainer.innerHTML = '';
+            if (window.lucide) { try { lucide.createIcons(); } catch(e){} }
+            return;
+        }
+
+        // 3. Subscription Expiry Math
+        const expiry = new Date(shop.subscription_expiry);
+        const now = new Date();
+        const diffTime = expiry - now;
+        const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (daysLeft < 0) {
+            // STRICT BLOCKADE - ZERO LEAKAGE
+            isSubscriptionBlocked = true;
+            if (subStatus) {
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 border-2 border-red-400 animate-pulse";
+                subStatus.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-600 animate-ping"></span> Expired (Locked)';
+            }
+            if (subDaysText) {
+                subDaysText.className = "text-xs font-bold text-red-600";
+                subDaysText.textContent = `• Expired ${Math.abs(daysLeft)} day${Math.abs(daysLeft) === 1 ? '' : 's'} ago`;
+            }
+            lockContainer.innerHTML = `
+                <div class="bg-red-50 border-2 border-red-500 rounded-3xl p-6 sm:p-8 mb-8 shadow-2xl text-center relative overflow-hidden">
+                    <div class="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-200 shadow-sm">
+                        <i data-lucide="lock" class="w-8 h-8"></i>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-black text-red-900 tracking-tight mb-2">SUBSCRIPTION EXPIRED - TERMINAL LOCKED</h2>
+                    <p class="text-red-700 font-semibold text-sm max-w-xl mx-auto mb-4">
+                        Your PrintHub SaaS platform license expired on <strong class="underline">${expiry.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})}</strong>. To protect platform integrity, document decryption, queue management, and printer routing are <strong>strictly locked</strong>.
+                    </p>
+                    <div class="bg-white border-2 border-red-200 rounded-2xl p-4 max-w-md mx-auto shadow-sm">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">How to unlock</p>
+                        <p class="text-sm font-bold text-slate-800">Contact Akshay / Platform Administrator to renew your subscription.</p>
+                    </div>
+                </div>
+            `;
+            if (ordersContainer) ordersContainer.innerHTML = '';
+            if (emptyState) emptyState.classList.add('hide');
+            if (window.lucide) { try { lucide.createIcons(); } catch(e){} }
+            return;
+        }
+
+        // Active Subscription
+        isSubscriptionBlocked = false;
+
+        // 4. Critical Alert Window: <= 3 Days Left
+        if (daysLeft <= 3) {
+            if (subStatus) {
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border-2 border-amber-400 animate-pulse";
+                subStatus.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-600"></i> ${daysLeft === 0 ? 'Expires Today' : `${daysLeft} Day${daysLeft === 1 ? '' : 's'} Remaining`}`;
+            }
+            if (subDaysText) {
+                subDaysText.className = "text-xs font-bold text-amber-700";
+                subDaysText.textContent = `• Renew in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`;
+            }
+            lockContainer.innerHTML = `
+                <div class="bg-amber-50 border-2 border-amber-400 rounded-3xl p-5 sm:p-6 mb-6 shadow-md shadow-amber-500/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center shrink-0 border border-amber-300">
+                            <i data-lucide="bell-ring" class="w-6 h-6 animate-bounce"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="bg-amber-200 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">CRITICAL ALERT</span>
+                                <span class="text-xs font-bold text-amber-800">${daysLeft === 0 ? 'Expires Tonight' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}</span>
+                            </div>
+                            <h3 class="text-lg font-black text-amber-900 tracking-tight mt-0.5">Subscription Expiring Soon!</h3>
+                            <p class="text-xs font-medium text-amber-800">
+                                Your terminal will lock automatically on <strong class="underline">${expiry.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})}</strong>. Pay your subscription to Akshay immediately to prevent service disruption.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="shrink-0 w-full sm:w-auto text-right">
+                        <div class="bg-amber-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-sm">
+                            Renew Plan
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Normal Active State (> 3 days)
+            if (subStatus) {
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200";
+                subStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> ${daysLeft} Days Left`;
+            }
+            if (subDaysText) {
+                subDaysText.className = "text-xs font-bold text-emerald-700";
+                subDaysText.textContent = `• Subscription Active (${daysLeft} days)`;
+            }
+            lockContainer.innerHTML = '';
+        }
+
+        if (window.lucide) { try { lucide.createIcons(); } catch(e){} }
+    }
+
     async function loadShopData() {
         try {
-            const shops = await supabaseFetch(`/rest/v1/printhub_shops?owner_uid=eq.${currentSession.user.id}&select=id,shop_name`);
+            const shops = await supabaseFetch(`/rest/v1/printhub_shops?owner_uid=eq.${currentSession.user.id}&select=id,shop_name,is_active,subscription_expiry`);
             if (shops && shops.length > 0) {
-                shopId = shops[0].id;
-                shopNameEl.textContent = shops[0].shop_name;
+                currentShop = shops[0];
+                shopId = currentShop.id;
+                shopNameEl.textContent = currentShop.shop_name;
                 sysLog(`Shop locked: ${shopId}`);
-                fetchOrders();
+                evaluateSubscription(currentShop);
+                if (!isSubscriptionBlocked) {
+                    fetchOrders();
+                }
                 refreshInterval = setInterval(fetchOrders, 5000);
             } else {
                 sysLog('No shop found for this user.');
@@ -269,9 +430,14 @@
     async function fetchOrders() {
         if (!shopId) return;
         try {
-            // Check Server Heartbeat
-            const shopRes = await supabaseFetch(`/rest/v1/printhub_shops?id=eq.${shopId}&select=active_device_id`);
+            // Check Server Heartbeat & Live Subscription Update
+            const shopRes = await supabaseFetch(`/rest/v1/printhub_shops?id=eq.${shopId}&select=active_device_id,is_active,subscription_expiry`);
             if (shopRes && shopRes.length > 0) {
+                evaluateSubscription(shopRes[0]);
+                if (isSubscriptionBlocked) {
+                    return; // STRICT LOCK: Zero data leakage when expired or suspended
+                }
+
                 const hwidStr = shopRes[0].active_device_id || '';
                 const serverStatus = document.getElementById('server-status');
                 
@@ -410,6 +576,10 @@
     }
 
     window.executeRouting = async function(orderId, mode) {
+        if (isSubscriptionBlocked) {
+            alert("Terminal Locked: Subscription has expired or account is suspended. Please contact Superadmin to renew.");
+            return;
+        }
         try {
             const bwEl = document.getElementById(`route_bw_${orderId}`);
             const colorEl = document.getElementById(`route_color_${orderId}`);
@@ -460,10 +630,18 @@
     }
 
     window.handleMarkPaid = function(orderId) {
+        if (isSubscriptionBlocked) {
+            alert("Terminal Locked: Subscription expired. Contact Superadmin to renew.");
+            return;
+        }
         updateOrderStatus(orderId, 'Paid');
     }
 
     window.verifyOtp = async function(orderId, otpInput) {
+        if (isSubscriptionBlocked) {
+            alert("Terminal Locked: Subscription expired. Contact Superadmin to renew.");
+            return false;
+        }
         try {
             const orders = await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}&select=otp`);
             if (orders && orders.length > 0) {

@@ -641,7 +641,7 @@ def main():
             current_time = int(time.time())
             
             # 1. Hardware Heartbeat & Killswitch Check (Fetch First)
-            heartbeat_res = supabase.table('printhub_shops').select('active_device_id, is_active').eq('id', shop_id).execute()
+            heartbeat_res = supabase.table('printhub_shops').select('active_device_id, is_active, subscription_expiry').eq('id', shop_id).execute()
             
             selected_printer = None
             if heartbeat_res.data:
@@ -650,6 +650,20 @@ def main():
                     logger.error("Account suspended by platform administrator. Pausing operations.")
                     time.sleep(30)
                     continue
+                
+                # Zero Leakage Protocol: Block print spooling if subscription expired
+                sub_expiry_str = shop_status.get('subscription_expiry')
+                if sub_expiry_str:
+                    from datetime import datetime, timezone
+                    try:
+                        expiry_clean = sub_expiry_str.replace('Z', '+00:00')
+                        expiry_dt = datetime.fromisoformat(expiry_clean)
+                        if datetime.now(timezone.utc) > expiry_dt:
+                            logger.error(f"SUBSCRIPTION EXPIRED on {sub_expiry_str}. Print operations locked. Contact administrator.")
+                            time.sleep(30)
+                            continue
+                    except Exception as e:
+                        logger.warning(f"Error evaluating subscription expiry: {e}")
                 
                 device_data_str = str(shop_status.get('active_device_id', ''))
                 # Handle legacy pipe format or new JSON format
