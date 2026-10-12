@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,33 +7,37 @@
     
     <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        };
+    </script>
     <script src="lib/lucide.min.js?v=2"></script>
 
-    <!-- Google Fonts: Inter (Matching index.html) -->
+    <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 
     <style>
         body { 
             font-family: 'Inter', sans-serif; 
-            background-color: #f8fafc; 
-            color: #0f172a; 
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
+
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
         
         .hide { display: none !important; }
 
-        /* Smooth subtle animations from index.html */
+        /* Smooth accordion & card transitions */
+        .accordion-content {
+            transition: max-height 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+        }
+
         .fade-in { animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes fadeIn { 
             from { opacity: 0; transform: translateY(6px); } 
             to { opacity: 1; transform: translateY(0); } 
-        }
-
-        .pulse-subtle { animation: pulseSubtle 2s infinite; }
-        @keyframes pulseSubtle {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
         }
 
         /* Hide scrollbars */
@@ -41,32 +45,32 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="antialiased min-h-screen selection:bg-blue-100">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased min-h-screen selection:bg-blue-100 dark:selection:bg-blue-900">
 
 <div id="app" class="min-h-screen flex flex-col">
     <!-- AUTH SCREEN -->
     <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-8 sm:p-10 max-w-md w-full shadow-xl shadow-slate-200/50 border border-slate-100 fade-in text-center">
-            <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-5 border border-blue-100 shadow-sm">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl p-8 sm:p-10 max-w-md w-full shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 fade-in text-center">
+            <div class="w-16 h-16 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-2xl mx-auto flex items-center justify-center mb-5 border border-blue-100 dark:border-blue-900 shadow-sm">
                 <i data-lucide="printer" class="w-8 h-8"></i>
             </div>
-            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Agent Terminal</h1>
-            <p class="text-xs text-slate-500 font-medium mt-1 mb-8">Sign in with your PrintHub shop operator credentials</p>
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Agent Terminal</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 mb-8">Sign in with your PrintHub shop operator credentials</p>
             
             <div id="login-form" class="space-y-4 text-left" onsubmit="handleLogin(event)">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Email Address</label>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Email Address</label>
                     <input type="email" id="email" required placeholder="shop@printhub.com"
-                        class="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all">
+                        class="w-full bg-slate-50/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-950 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Password</label>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Password</label>
                     <input type="password" id="password" required placeholder="••••••••••••"
-                        class="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all">
+                        class="w-full bg-slate-50/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-950 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all">
                 </div>
-                <div id="login-error" class="text-xs font-semibold text-red-600 hidden bg-red-50 p-3 rounded-xl border border-red-100"></div>
+                <div id="login-error" class="text-xs font-semibold text-red-600 dark:text-red-400 hidden bg-red-50 dark:bg-red-950/50 p-3 rounded-xl border border-red-100 dark:border-red-900"></div>
                 <button type="button" id="btn-login-submit" onclick="handleLogin(event)"
-                    class="w-full bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-4 text-sm">
+                    class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 active:scale-[0.98] text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-4 text-sm">
                     <i data-lucide="log-in" class="w-4 h-4"></i>
                     Sign In to Station
                 </button>
@@ -77,51 +81,61 @@
     <!-- MAIN DASHBOARD SCREEN -->
     <div id="dashboard-screen" class="hide max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 w-full flex-1">
         <!-- TOP APP BAR -->
-        <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 bg-white rounded-3xl p-6 shadow-sm border border-slate-200/70 fade-in">
+        <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200/70 dark:border-slate-800 fade-in">
             <div class="flex items-center gap-4">
-                <div class="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 border border-blue-100 shadow-sm">
+                <div class="w-14 h-14 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-900 shadow-sm">
                     <i data-lucide="printer" class="w-7 h-7"></i>
                 </div>
                 <div>
                     <div class="flex items-center gap-2 flex-wrap">
-                        <h1 class="text-xl font-bold text-slate-900 tracking-tight">PrintHub Terminal</h1>
-                        <span id="server-status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        <h1 class="text-xl font-bold text-slate-900 dark:text-white tracking-tight">PrintHub Terminal</h1>
+                        <span id="server-status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                             <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Offline
                         </span>
-                        <span id="sub-status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        <span id="sub-status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                             <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Checking plan
                         </span>
                     </div>
-                    <p class="text-xs font-medium text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap" id="shop-name-container">
-                        <span id="shop-name" class="font-bold text-slate-700">Connecting to shop...</span>
-                        <span id="sub-days-text" class="text-slate-400"></span>
+                    <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap" id="shop-name-container">
+                        <span id="shop-name" class="font-bold text-slate-700 dark:text-slate-300">Connecting to shop...</span>
+                        <span id="sub-days-text"></span>
                     </p>
                 </div>
             </div>
 
             <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
-                <button onclick="toggleReports()" class="bg-indigo-50 hover:bg-indigo-100/80 active:scale-[0.98] text-indigo-700 px-3.5 py-2.5 rounded-xl text-xs font-bold border border-indigo-100/80 shadow-2xs flex items-center gap-1.5 transition-all">
+                <!-- SLEEK DARK MODE TOGGLE -->
+                <button onclick="toggleTheme()" id="theme-toggle" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.98] text-slate-600 dark:text-slate-300 p-2.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 shadow-2xs flex items-center gap-1.5 transition-all" title="Toggle Theme">
+                    <i id="theme-icon" data-lucide="moon" class="w-4 h-4"></i>
+                </button>
+
+                <button onclick="toggleReports()" class="bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100/80 dark:hover:bg-indigo-900/60 active:scale-[0.98] text-indigo-700 dark:text-indigo-300 px-3.5 py-2.5 rounded-xl text-xs font-bold border border-indigo-100/80 dark:border-indigo-900 shadow-2xs flex items-center gap-1.5 transition-all">
                     <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Reports
                 </button>
-                <button id="btn-sync" onclick="fetchOrders()" class="bg-white hover:bg-slate-50 active:scale-[0.98] border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-1.5 transition-all">
-                    <i data-lucide="refresh-cw" class="w-4 h-4 text-slate-500"></i> Sync
+                <button id="btn-sync" onclick="fetchOrders()" class="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-[0.98] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-bold shadow-2xs flex items-center gap-1.5 transition-all">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 text-slate-400"></i> Sync
                 </button>
-                <button onclick="openSettings()" class="bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white px-3.5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all">
+                <button onclick="openSettings()" class="bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.98] text-white px-3.5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all border border-transparent dark:border-slate-700">
                     <i data-lucide="settings" class="w-4 h-4"></i> Settings
                 </button>
-                <button id="btn-logout" class="bg-red-50 hover:bg-red-100 active:scale-[0.98] text-red-600 border border-red-100 px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1">
+                <button id="btn-logout" class="bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/50 active:scale-[0.98] text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900 px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1" title="Sign Out">
                     <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
                 </button>
             </div>
         </header>
 
-        <!-- SEARCH INPUT -->
-        <div class="mb-6 fade-in">
-            <div class="relative">
+        <!-- SEARCH INPUT & LIVE QUEUE STATS -->
+        <div class="mb-6 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between fade-in">
+            <div class="relative flex-1">
                 <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
                 <input type="text" id="search-input" oninput="filterAndRenderOrders()" 
-                    placeholder="Search orders by Customer Name, Phone, 4-digit PIN, or Order ID..." 
-                    class="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3 text-sm font-medium text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none shadow-xs transition-all">
+                    placeholder="Search by customer name, phone, 4-digit PIN, or order ID..." 
+                    class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl pl-11 pr-4 py-3 text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none shadow-xs transition-all">
+            </div>
+            
+            <div id="queue-counter" class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 px-4 py-3 rounded-2xl text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-2 shrink-0">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span id="active-queue-count">0 orders in station</span>
             </div>
         </div>
 
@@ -129,71 +143,71 @@
         <div id="lock-container" class="fade-in"></div>
 
         <!-- EMPTY STATE -->
-        <div id="empty-state" class="hide bg-white border border-slate-200/80 rounded-3xl p-12 text-center shadow-xs fade-in my-8">
-            <div class="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100 text-slate-400">
+        <div id="empty-state" class="hide bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-12 text-center shadow-xs fade-in my-8">
+            <div class="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100 dark:border-slate-700 text-slate-400">
                 <i data-lucide="inbox" class="w-8 h-8"></i>
             </div>
-            <h3 class="text-base font-bold text-slate-800 mb-1">Queue is Empty</h3>
-            <p class="text-xs text-slate-500 max-w-sm mx-auto">No incoming orders in queue. The terminal will automatically update when a customer places a print request.</p>
+            <h3 class="text-base font-bold text-slate-800 dark:text-white mb-1">Queue is Empty</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">No incoming orders in queue. The terminal updates live when a student submits an order.</p>
         </div>
 
-        <!-- ORDERS CONTAINER -->
-        <div id="orders-container" class="space-y-5 fade-in"></div>
+        <!-- ORDERS CONTAINER (ACCORDION STYLE) -->
+        <div id="orders-container" class="space-y-3.5 fade-in"></div>
     </div>
 
     <!-- REPORTS SCREEN -->
     <div id="reports-screen" class="hide max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 w-full flex-1">
-        <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 bg-white rounded-3xl p-6 shadow-sm border border-slate-200/70 fade-in">
+        <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200/70 dark:border-slate-800 fade-in">
             <div class="flex items-center gap-4">
-                <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0 border border-indigo-100 shadow-sm">
+                <div class="w-14 h-14 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900 shadow-sm">
                     <i data-lucide="bar-chart-2" class="w-7 h-7"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-slate-900 tracking-tight">Business Reports</h1>
-                    <p class="text-xs font-medium text-slate-500 mt-0.5">Order volume and revenue statistics</p>
+                    <h1 class="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Business Reports</h1>
+                    <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Order volume and revenue statistics</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="downloadCSV()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all">
                     <i data-lucide="download" class="w-4 h-4"></i> Export CSV
                 </button>
-                <button onclick="toggleReports()" class="bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all">
+                <button onclick="toggleReports()" class="bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.98] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all">
                     <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Queue
                 </button>
             </div>
         </header>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-            <div class="bg-white rounded-2xl p-6 shadow-xs border border-slate-200/80">
-                <div class="flex items-center justify-between text-slate-500 mb-2">
+            <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200/80 dark:border-slate-800">
+                <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
                     <span class="text-xs font-bold uppercase tracking-wider">Total Revenue</span>
                     <i data-lucide="wallet" class="w-4 h-4 text-emerald-600"></i>
                 </div>
-                <div class="text-3xl font-extrabold text-slate-900" id="report-total-revenue">₹0</div>
+                <div class="text-3xl font-extrabold text-slate-900 dark:text-white" id="report-total-revenue">₹0</div>
                 <p class="text-xs text-slate-400 mt-1">Paid and spooled print jobs</p>
             </div>
-            <div class="bg-white rounded-2xl p-6 shadow-xs border border-slate-200/80">
-                <div class="flex items-center justify-between text-slate-500 mb-2">
+            <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200/80 dark:border-slate-800">
+                <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
                     <span class="text-xs font-bold uppercase tracking-wider">Completed Orders</span>
                     <i data-lucide="check-circle" class="w-4 h-4 text-blue-600"></i>
                 </div>
-                <div class="text-3xl font-extrabold text-slate-900" id="report-completed-count">0</div>
+                <div class="text-3xl font-extrabold text-slate-900 dark:text-white" id="report-completed-count">0</div>
                 <p class="text-xs text-slate-400 mt-1">Jobs processed successfully</p>
             </div>
-            <div class="bg-white rounded-2xl p-6 shadow-xs border border-slate-200/80">
-                <div class="flex items-center justify-between text-slate-500 mb-2">
+            <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200/80 dark:border-slate-800">
+                <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
                     <span class="text-xs font-bold uppercase tracking-wider">Pending In Queue</span>
                     <i data-lucide="clock" class="w-4 h-4 text-amber-500"></i>
                 </div>
-                <div class="text-3xl font-extrabold text-slate-900" id="report-pending-count">0</div>
+                <div class="text-3xl font-extrabold text-slate-900 dark:text-white" id="report-pending-count">0</div>
                 <p class="text-xs text-slate-400 mt-1">Awaiting PIN or spooling</p>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xs border border-slate-200/80 dark:border-slate-800 overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs text-slate-600">
-                    <thead class="bg-slate-50 border-b border-slate-200 text-[11px] uppercase font-bold text-slate-500">
+                <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                    <thead class="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400">
                         <tr>
                             <th class="px-6 py-4">Date & Time</th>
                             <th class="px-6 py-4">Order ID</th>
@@ -203,21 +217,28 @@
                             <th class="px-6 py-4">Status</th>
                         </tr>
                     </thead>
-                    <tbody id="reports-table-body" class="divide-y divide-slate-100"></tbody>
+                    <tbody id="reports-table-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
                 </table>
             </div>
         </div>
     </div>
 </div>
 
+<!-- FLOATING HOVER PREVIEW POPUP -->
+<div id="file-hover-popover" class="fixed pointer-events-none z-[100] hidden transition-opacity duration-200 opacity-0 transform -translate-x-1/2 -translate-y-full mb-3">
+    <div id="file-hover-body" class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-3.5 max-w-xs text-xs">
+        <!-- Injected via JS -->
+    </div>
+</div>
+
 <!-- SETTINGS MODAL -->
 <div id="settings-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 hidden items-center justify-center p-4 fade-in">
-    <div class="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 flex flex-col max-h-[90vh]">
-        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/70 rounded-t-3xl">
-            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col max-h-[90vh]">
+        <div class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/70 dark:bg-slate-950 rounded-t-3xl">
+            <h2 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <i data-lucide="sliders" class="w-4 h-4 text-slate-500"></i> Shop Configuration
             </h2>
-            <button onclick="closeSettings()" class="text-slate-400 hover:text-slate-600 transition-colors">
+            <button onclick="closeSettings()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
@@ -228,16 +249,16 @@
                     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Shop Profile</h3>
                     <div class="space-y-3">
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Shop Name</label>
-                            <input type="text" id="set_shop_name" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-600 outline-none" required>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Shop Name</label>
+                            <input type="text" id="set_shop_name" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:bg-white focus:border-blue-600 outline-none" required>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Location Details</label>
-                            <input type="text" id="set_location" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-600 outline-none">
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Location Details</label>
+                            <input type="text" id="set_location" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:bg-white focus:border-blue-600 outline-none">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Logo URL (Optional)</label>
-                            <input type="url" id="set_logo_url" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-600 outline-none">
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Logo URL (Optional)</label>
+                            <input type="url" id="set_logo_url" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:bg-white focus:border-blue-600 outline-none">
                         </div>
                     </div>
                 </div>
@@ -246,22 +267,22 @@
                     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Pricing per Page</h3>
                     <div class="grid grid-cols-2 gap-3 mb-3">
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">B&W Price (₹)</label>
-                            <input type="number" step="0.1" id="set_price_bw" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-600 outline-none" required>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">B&W Price (₹)</label>
+                            <input type="number" step="0.1" id="set_price_bw" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:bg-white focus:border-blue-600 outline-none" required>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Color Price (₹)</label>
-                            <input type="number" step="0.1" id="set_price_color" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-600 outline-none" required>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Color Price (₹)</label>
+                            <input type="number" step="0.1" id="set_price_color" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:bg-white focus:border-blue-600 outline-none" required>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Top Offer Banner Text</label>
-                        <input type="text" id="set_offer_banner" placeholder="e.g. Exam special: 20% off all thesis prints" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-600 outline-none">
+                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Top Offer Banner Text</label>
+                        <input type="text" id="set_offer_banner" placeholder="e.g. Exam special: 20% off all thesis prints" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:bg-white focus:border-blue-600 outline-none">
                     </div>
                 </div>
                 
                 <div class="pt-2 flex gap-3">
-                    <button type="button" onclick="closeSettings()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-colors">Cancel</button>
+                    <button type="button" onclick="closeSettings()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-2.5 rounded-xl text-xs transition-colors">Cancel</button>
                     <button type="submit" id="btn-save-settings" class="flex-1 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition-colors">Save Settings</button>
                 </div>
             </form>
@@ -284,9 +305,56 @@
     let allOrders = [];
     let isReportsView = false;
     let isSubscriptionBlocked = false;
+    let expandedOrderId = null; // Only one card open at a time
+    let knownOrderIds = new Set();
+    let initialOrdersLoaded = false;
 
-    // Initialize UI
-    if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
+    // THEME MANAGEMENT (SLEEK DARK MODE)
+    function initTheme() {
+        const saved = localStorage.getItem('printhub_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        setTheme(saved);
+    }
+
+    function toggleTheme() {
+        const isDark = document.documentElement.classList.contains('dark');
+        setTheme(isDark ? 'light' : 'dark');
+    }
+
+    function setTheme(theme) {
+        const icon = document.getElementById('theme-icon');
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+            localStorage.setItem('printhub_theme', 'dark');
+            if (icon) icon.setAttribute('data-lucide', 'sun');
+        } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+            localStorage.setItem('printhub_theme', 'light');
+            if (icon) icon.setAttribute('data-lucide', 'moon');
+        }
+        if (window.lucide) { try { lucide.createIcons(); } catch(e){} }
+    }
+
+    initTheme();
+
+    // WEB AUDIO LIVE CHIME NOTIFICATION (100% offline, synthesized)
+    function playChime() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+        } catch(e) {}
+    }
 
     const authScreen = document.getElementById('auth-screen');
     const dashboardScreen = document.getElementById('dashboard-screen');
@@ -364,23 +432,23 @@
         if (shop.is_active === false) {
             isSubscriptionBlocked = true;
             if (subStatus) {
-                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200";
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900";
                 subStatus.innerHTML = '<i data-lucide="shield-alert" class="w-3.5 h-3.5 text-red-600"></i> Suspended';
             }
             if (subDaysText) {
-                subDaysText.className = "text-xs font-bold text-red-600";
+                subDaysText.className = "text-xs font-bold text-red-600 dark:text-red-400";
                 subDaysText.textContent = "• Account Suspended by Admin";
             }
             lockContainer.innerHTML = `
-                <div class="bg-white rounded-3xl p-8 sm:p-12 shadow-xl shadow-slate-200/50 border border-slate-100 text-center max-w-lg mx-auto my-6 fade-in">
-                    <div class="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-red-100 shadow-sm">
+                <div class="bg-white dark:bg-slate-900 rounded-3xl p-8 sm:p-12 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 text-center max-w-lg mx-auto my-6 fade-in">
+                    <div class="w-16 h-16 bg-red-50 dark:bg-red-950/60 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-red-100 dark:border-red-900 shadow-sm">
                         <i data-lucide="shield-alert" class="w-8 h-8"></i>
                     </div>
-                    <h2 class="text-2xl font-bold text-slate-800 tracking-tight mb-2">Shop Suspended</h2>
-                    <p class="text-slate-500 text-sm font-medium leading-relaxed mb-6">
+                    <h2 class="text-2xl font-bold text-slate-800 dark:text-white tracking-tight mb-2">Shop Suspended</h2>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed mb-6">
                         This terminal has been temporarily paused by the platform administrator. Live printing and queue management are currently suspended.
                     </p>
-                    <div class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600">
+                    <div class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300">
                         <i data-lucide="mail" class="w-4 h-4 text-slate-400"></i> Contact Superadmin to restore access
                     </div>
                 </div>
@@ -395,7 +463,7 @@
         if (!shop.subscription_expiry) {
             isSubscriptionBlocked = false;
             if (subStatus) {
-                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200";
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900";
                 subStatus.innerHTML = '<i data-lucide="infinity" class="w-3.5 h-3.5 text-blue-600"></i> Enterprise License';
             }
             if (subDaysText) {
@@ -417,23 +485,23 @@
             // STRICT BLOCKADE - ZERO LEAKAGE
             isSubscriptionBlocked = true;
             if (subStatus) {
-                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200";
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900";
                 subStatus.innerHTML = '<i data-lucide="lock" class="w-3.5 h-3.5 text-rose-600"></i> Expired';
             }
             if (subDaysText) {
-                subDaysText.className = "text-xs font-bold text-rose-600";
+                subDaysText.className = "text-xs font-bold text-rose-600 dark:text-rose-400";
                 subDaysText.textContent = `• Expired ${Math.abs(daysLeft)} day${Math.abs(daysLeft) === 1 ? '' : 's'} ago`;
             }
             lockContainer.innerHTML = `
-                <div class="bg-white rounded-3xl p-8 sm:p-12 shadow-xl shadow-slate-200/50 border border-slate-100 text-center max-w-lg mx-auto my-6 fade-in">
-                    <div class="w-16 h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-rose-100 shadow-sm">
+                <div class="bg-white dark:bg-slate-900 rounded-3xl p-8 sm:p-12 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 text-center max-w-lg mx-auto my-6 fade-in">
+                    <div class="w-16 h-16 bg-rose-50 dark:bg-rose-950/60 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-rose-100 dark:border-rose-900 shadow-sm">
                         <i data-lucide="lock" class="w-8 h-8"></i>
                     </div>
-                    <h2 class="text-2xl font-bold text-slate-800 tracking-tight mb-2">Subscription Expired</h2>
-                    <p class="text-slate-500 text-sm font-medium leading-relaxed mb-6">
-                        Your PrintHub terminal license expired on <strong class="text-slate-700">${expiry.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})}</strong>. Order decryption and printer routing are temporarily locked.
+                    <h2 class="text-2xl font-bold text-slate-800 dark:text-white tracking-tight mb-2">Subscription Expired</h2>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed mb-6">
+                        Your PrintHub terminal license expired on <strong class="text-slate-700 dark:text-slate-300">${expiry.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})}</strong>. Order decryption and printer routing are temporarily locked.
                     </p>
-                    <div class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-sm">
+                    <div class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 dark:bg-blue-600 text-white rounded-xl text-xs font-bold shadow-sm">
                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-indigo-400"></i> Contact Superadmin to Renew
                     </div>
                 </div>
@@ -450,28 +518,28 @@
         // 4. Critical Alert Window: <= 3 Days
         if (daysLeft <= 3) {
             if (subStatus) {
-                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200";
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900";
                 subStatus.innerHTML = `<i data-lucide="clock" class="w-3.5 h-3.5 text-amber-600 animate-pulse"></i> ${daysLeft === 0 ? 'Expires Today' : `${daysLeft} Days Left`}`;
             }
             if (subDaysText) {
-                subDaysText.className = "text-xs font-semibold text-amber-700";
+                subDaysText.className = "text-xs font-semibold text-amber-700 dark:text-amber-400";
                 subDaysText.textContent = `• Renew in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`;
             }
             lockContainer.innerHTML = `
-                <div class="bg-white rounded-2xl p-4 sm:p-5 mb-6 shadow-sm border border-amber-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 fade-in">
+                <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 mb-6 shadow-sm border border-amber-200/80 dark:border-amber-900/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 fade-in">
                     <div class="flex items-center gap-3.5">
-                        <div class="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0 border border-amber-200/60">
+                        <div class="w-10 h-10 bg-amber-50 dark:bg-amber-950/60 text-amber-600 rounded-xl flex items-center justify-center shrink-0 border border-amber-200/60 dark:border-amber-900">
                             <i data-lucide="clock" class="w-5 h-5"></i>
                         </div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <span class="text-xs font-bold text-amber-900">Subscription Renewal Notice</span>
-                                <span class="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60">
+                                <span class="text-xs font-bold text-amber-900 dark:text-amber-300">Subscription Renewal Notice</span>
+                                <span class="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-200/60 dark:border-amber-800">
                                     ${daysLeft === 0 ? 'Expires Today' : `${daysLeft} days remaining`}
                                 </span>
                             </div>
-                            <p class="text-xs text-slate-500 mt-0.5">
-                                Terminal access will pause on <strong class="text-slate-700">${expiry.toLocaleDateString(undefined, {month:'short', day:'numeric'})}</strong>. Please renew with Superadmin to keep your queue active.
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                Terminal access will pause on <strong class="text-slate-700 dark:text-slate-200">${expiry.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})}</strong>. Please renew with Superadmin to keep your queue active.
                             </p>
                         </div>
                     </div>
@@ -485,11 +553,11 @@
         } else {
             // Normal Active State (> 3 days)
             if (subStatus) {
-                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200";
+                subStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900";
                 subStatus.innerHTML = `<i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i> ${daysLeft} Days Left`;
             }
             if (subDaysText) {
-                subDaysText.className = "text-xs font-medium text-emerald-700";
+                subDaysText.className = "text-xs font-medium text-emerald-700 dark:text-emerald-400";
                 subDaysText.textContent = `• Active (${daysLeft} days remaining)`;
             }
             lockContainer.innerHTML = '';
@@ -509,7 +577,7 @@
                 if (!isSubscriptionBlocked) {
                     fetchOrders();
                 }
-                refreshInterval = setInterval(fetchOrders, 5000);
+                refreshInterval = setInterval(fetchOrders, 4000);
             } else {
                 sysLog('No shop found for this user.');
                 alert('No shop linked to this account.');
@@ -526,9 +594,7 @@
             const shopRes = await supabaseFetch(`/rest/v1/printhub_shops?id=eq.${shopId}&select=active_device_id,is_active,subscription_expiry`);
             if (shopRes && shopRes.length > 0) {
                 evaluateSubscription(shopRes[0]);
-                if (isSubscriptionBlocked) {
-                    return; // STRICT LOCKOUT: Zero data leakage when expired
-                }
+                if (isSubscriptionBlocked) return;
 
                 const hwidStr = shopRes[0].active_device_id || '';
                 const serverStatus = document.getElementById('server-status');
@@ -548,14 +614,14 @@
                     if (lastHeartbeat > 0) {
                         const now = Math.floor(Date.now() / 1000);
                         if (now - lastHeartbeat < 30) {
-                            serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200";
+                            serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800";
                             serverStatus.innerHTML = '<span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span> Server Online';
                         } else {
-                            serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-200";
+                            serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900";
                             serverStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Server Offline';
                         }
                     } else {
-                        serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200";
+                        serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900";
                         serverStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Awaiting Signal';
                     }
                 }
@@ -563,7 +629,31 @@
 
             // Orders list
             const orders = await supabaseFetch(`/rest/v1/printhub_orders?select=*,printhub_files(*)&shop_id=eq.${shopId}&order=created_at.desc`);
+            
+            // Audio alert on new incoming order
+            if (orders && orders.length > 0) {
+                let hasNewOrder = false;
+                orders.forEach(o => {
+                    if (initialOrdersLoaded && !knownOrderIds.has(o.id) && o.status === 'Pending') {
+                        hasNewOrder = true;
+                    }
+                    knownOrderIds.add(o.id);
+                });
+                if (hasNewOrder) {
+                    playChime();
+                }
+                initialOrdersLoaded = true;
+            }
+
             allOrders = orders || [];
+            
+            // Update queue counter badge
+            const pendingCount = allOrders.filter(o => o.status === 'Pending').length;
+            const counterEl = document.getElementById('active-queue-count');
+            if (counterEl) {
+                counterEl.textContent = `${pendingCount} active in queue (${allOrders.length} total)`;
+            }
+
             if (isReportsView) {
                 renderReports();
             } else {
@@ -593,6 +683,102 @@
         );
         renderOrders(filtered);
     }
+
+    // ACCORDION TOGGLE (ONE CARD OPEN AT A TIME)
+    window.toggleOrderAccordion = function(orderId) {
+        expandedOrderId = (expandedOrderId === orderId) ? null : orderId;
+        filterAndRenderOrders();
+    };
+
+    // FLOATING POPUP PREVIEW LOGIC
+    window.showFileHover = function(e, name, pages, copies, colorMode, url, isImage) {
+        const popover = document.getElementById('file-hover-popover');
+        const body = document.getElementById('file-hover-body');
+        if (!popover || !body) return;
+
+        let content = '';
+        if (isImage) {
+            content = `
+                <div class="space-y-2">
+                    <div class="h-32 w-48 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                        <img src="${url}" class="w-full h-full object-cover" />
+                    </div>
+                    <div class="font-bold text-slate-800 dark:text-white truncate">${name}</div>
+                    <div class="text-[10px] text-slate-500 flex justify-between">
+                        <span>Image (${copies} copies)</span>
+                        <span class="font-semibold text-blue-600">${colorMode.toUpperCase()}</span>
+                    </div>
+                </div>
+            `;
+        } else {
+            content = `
+                <div class="space-y-2 w-52">
+                    <div class="flex items-center gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <div class="w-8 h-10 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 rounded-lg flex flex-col items-center justify-center shrink-0">
+                            <i data-lucide="file-text" class="w-4 h-4 text-red-500"></i>
+                            <span class="text-[6px] font-black text-red-600 uppercase">PDF</span>
+                        </div>
+                        <div class="overflow-hidden">
+                            <div class="font-bold text-slate-900 dark:text-white truncate text-xs" title="${name}">${name}</div>
+                            <div class="text-[10px] text-slate-400 font-medium">${pages} ${pages === 1 ? 'Page' : 'Pages'} Document</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] pt-1">
+                        <span class="text-slate-500">Print Mode:</span>
+                        <span class="font-bold ${colorMode === 'color' ? 'text-blue-600' : 'text-slate-700 dark:text-slate-300'}">${colorMode === 'color' ? 'Color' : 'Monochrome'}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px]">
+                        <span class="text-slate-500">Total Output:</span>
+                        <span class="font-bold text-slate-900 dark:text-white">${pages * copies} sheets</span>
+                    </div>
+                    <div class="text-[9px] text-slate-400 text-center pt-1 border-t border-slate-100 dark:border-slate-800">
+                        Move mouse to dismiss • Click View for full reader
+                    </div>
+                </div>
+            `;
+        }
+
+        body.innerHTML = content;
+        if (window.lucide) { try { lucide.createIcons(); } catch(err){} }
+
+        popover.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            popover.classList.remove('opacity-0');
+        });
+
+        moveFileHover(e);
+    };
+
+    window.moveFileHover = function(e) {
+        const popover = document.getElementById('file-hover-popover');
+        if (!popover || popover.classList.contains('hidden')) return;
+
+        let left = e.clientX;
+        let top = e.clientY - 12;
+
+        // Prevent off-screen overflow
+        const popoverWidth = 220;
+        if (left - popoverWidth / 2 < 10) left = popoverWidth / 2 + 10;
+        if (left + popoverWidth / 2 > window.innerWidth - 10) left = window.innerWidth - popoverWidth / 2 - 10;
+
+        popover.style.left = left + 'px';
+        popover.style.top = top + 'px';
+    };
+
+    window.hideFileHover = function() {
+        const popover = document.getElementById('file-hover-popover');
+        if (!popover) return;
+        popover.classList.add('opacity-0');
+        setTimeout(() => {
+            popover.classList.add('hidden');
+        }, 150);
+    };
+
+    window.copyText = function(text, label) {
+        navigator.clipboard.writeText(text).then(() => {
+            alert(`${label} copied to clipboard!`);
+        });
+    };
 
     window.toggleReports = function() {
         isReportsView = !isReportsView;
@@ -627,19 +813,19 @@
             const dt = new Date(o.created_at);
             const formattedDate = dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             
-            const badgeClass = o.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                               o.status === 'Cancelled' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200';
+            const badgeClass = o.status === 'Paid' ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
+                               o.status === 'Cancelled' ? 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800';
 
             return `
-                <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="px-6 py-4 font-medium text-slate-500">${formattedDate}</td>
-                    <td class="px-6 py-4 font-mono font-bold text-slate-700">#${o.id.substring(0,8)}</td>
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td class="px-6 py-4 font-medium text-slate-500 dark:text-slate-400">${formattedDate}</td>
+                    <td class="px-6 py-4 font-mono font-bold text-slate-700 dark:text-slate-300">#${o.id.substring(0,8)}</td>
                     <td class="px-6 py-4">
-                        <div class="font-bold text-slate-900">${o.customer_name || 'Guest'}</div>
+                        <div class="font-bold text-slate-900 dark:text-white">${o.customer_name || 'Guest'}</div>
                         <div class="text-[10px] text-slate-400">${o.customer_phone || ''}</div>
                     </td>
-                    <td class="px-6 py-4 capitalize font-medium text-slate-700">${o.payment_mode === 'online' ? 'Online' : 'Counter'}</td>
-                    <td class="px-6 py-4 font-bold text-slate-900">₹${amt.toFixed(2)}</td>
+                    <td class="px-6 py-4 capitalize font-medium text-slate-700 dark:text-slate-300">${o.payment_mode === 'online' ? 'Online' : 'Counter'}</td>
+                    <td class="px-6 py-4 font-bold text-slate-900 dark:text-white">₹${amt.toFixed(2)}</td>
                     <td class="px-6 py-4">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}">
                             ${o.status}
@@ -770,9 +956,10 @@
         if (!success) {
             alert('Invalid 4-digit PIN. Please verify with the customer.');
             btn.disabled = false;
-            btn.innerHTML = 'Verify & Unlock';
+            btn.innerHTML = '<i data-lucide="key" class="w-3.5 h-3.5"></i> Verify & Unlock';
             input.value = '';
             input.focus();
+            if(window.lucide) { try { lucide.createIcons(); } catch(err){} }
         }
     }
 
@@ -853,9 +1040,18 @@
         }
         
         emptyState.classList.add('hidden', 'hide');
+
+        // Automatically expand the first active order if none is expanded
+        if (!expandedOrderId && orders.length > 0) {
+            const firstPending = orders.find(o => o.status === 'Pending');
+            expandedOrderId = firstPending ? firstPending.id : orders[0].id;
+        }
+
         let html = '';
         
         orders.forEach(order => {
+            const isExpanded = (order.id === expandedOrderId);
+
             let rawNotes = order.notes || '';
             if (rawNotes.startsWith('{')) {
                 try {
@@ -866,10 +1062,17 @@
             
             const isUrgent = rawNotes.includes('[URGENT]') || order.is_urgent;
             
-            const statusBadgeClass = order.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
-                                    (order.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                                    (order.status === 'Cancelled' ? 'bg-red-50 text-red-600 border-red-200' :
-                                    'bg-slate-100 text-slate-700 border-slate-200'));
+            const statusBadgeClass = order.status === 'Pending' ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' : 
+                                    (order.status === 'Paid' ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
+                                    (order.status === 'Cancelled' ? 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800' :
+                                    'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'));
+
+            // Calculate total impressions across files
+            const files = order.printhub_files || [];
+            let totalPrints = 0;
+            files.forEach(f => {
+                totalPrints += (f.pages || 1) * (f.copies || 1);
+            });
                                   
             let otpSection = '';
             
@@ -878,7 +1081,7 @@
                     otpSection = `
                         <form onsubmit="handleVerifyOtp(event, '${order.id}')" class="mt-5 flex gap-2">
                             <input type="text" maxlength="4" placeholder="Enter 4-digit Customer PIN" required 
-                                class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-center tracking-widest font-bold text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 outline-none text-sm transition-all shadow-2xs">
+                                class="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-center tracking-widest font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-950 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 outline-none text-sm transition-all shadow-2xs font-mono">
                             <button type="submit" class="bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5">
                                 <i data-lucide="key" class="w-3.5 h-3.5"></i> Verify & Unlock
                             </button>
@@ -897,26 +1100,26 @@
                     }
 
                     otpSection = `
-                        <div class="mt-5 bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4">
-                            <div class="text-xs font-bold text-emerald-700 text-center mb-3.5 flex items-center justify-center gap-1.5 bg-emerald-50 border border-emerald-200/60 py-1.5 px-3 rounded-xl">
+                        <div class="mt-5 bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
+                            <div class="text-xs font-bold text-emerald-700 dark:text-emerald-400 text-center mb-3.5 flex items-center justify-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/60 dark:border-emerald-800 py-1.5 px-3 rounded-xl">
                                 <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Customer PIN Verified
                             </div>
                             
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                                 <div>
-                                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                    <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                                         <i data-lucide="printer" class="w-3.5 h-3.5 text-slate-500"></i> Dedicated B&W Target
                                     </label>
-                                    <select id="route_bw_${order.id}" class="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-2xs font-medium">
+                                    <select id="route_bw_${order.id}" class="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-2xs font-medium">
                                         ${bwOptions}
                                     </select>
                                 </div>
                                 
                                 <div>
-                                    <label class="block text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                    <label class="block text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                                         <i data-lucide="palette" class="w-3.5 h-3.5 text-blue-500"></i> Dedicated Color Target
                                     </label>
-                                    <select id="route_color_${order.id}" class="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-2xs font-medium">
+                                    <select id="route_color_${order.id}" class="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-2xs font-medium">
                                         ${colorOptions}
                                     </select>
                                 </div>
@@ -926,7 +1129,7 @@
                                 <button onclick="executeRouting('${order.id}', 'auto')" class="flex-1 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center justify-center gap-2">
                                     <i data-lucide="send" class="w-4 h-4"></i> Spool Jobs
                                 </button>
-                                <button onclick="executeRouting('${order.id}', 'manual')" class="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98] text-slate-700 py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5" title="Manual Preview in Edge">
+                                <button onclick="executeRouting('${order.id}', 'manual')" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:bg-slate-700 active:scale-[0.98] text-slate-700 dark:text-slate-200 py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5" title="Manual Preview in Edge">
                                     <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-400"></i> Edge Preview
                                 </button>
                             </div>
@@ -934,7 +1137,7 @@
                     `;
                 } else if (order.status === 'Paid') {
                     otpSection = `
-                        <div class="mt-4 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 p-3 rounded-xl border border-emerald-200 text-xs font-bold shadow-2xs">
+                        <div class="mt-4 flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-xs font-bold shadow-2xs">
                             <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Spooled to Physical Printer Queue
                         </div>
                     `;
@@ -942,128 +1145,166 @@
             }
 
             const cleanNotesMarkup = rawNotes
-                .replace(/\[URGENT\]/g, '<span class="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-700 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="zap" class="w-3 h-3 text-rose-500"></i> Urgent</span>')
-                .replace(/\[SPIRAL BIND\]/g, '<span class="inline-flex items-center gap-1 bg-purple-50 border border-purple-200 text-purple-700 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="book-open" class="w-3 h-3 text-purple-500"></i> Spiral Bind</span>')
-                .replace(/\[CLEAR FOLDER\]/g, '<span class="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="folder" class="w-3 h-3 text-blue-500"></i> Clear Folder</span>');
+                .replace(/\[URGENT\]/g, '<span class="inline-flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="zap" class="w-3 h-3 text-rose-500"></i> Urgent</span>')
+                .replace(/\[SPIRAL BIND\]/g, '<span class="inline-flex items-center gap-1 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="book-open" class="w-3 h-3 text-purple-500"></i> Spiral Bind</span>')
+                .replace(/\[CLEAR FOLDER\]/g, '<span class="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="folder" class="w-3 h-3 text-blue-500"></i> Clear Folder</span>');
+
+            const cleanPhone = (order.customer_phone || '').replace(/[^0-9]/g, '');
+            const waLink = cleanPhone ? `https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(`Hello ${order.customer_name || 'Customer'}, your print job #${order.id.slice(0,8)} is ready at PrintHub!`)}` : '#';
 
             html += `
-            <div class="bg-white rounded-3xl p-6 shadow-sm border ${isUrgent ? 'border-rose-300 shadow-rose-500/5' : 'border-slate-200/80'} relative overflow-hidden transition-all duration-200 hover:shadow-md">
-                ${isUrgent ? `
-                <div class="absolute top-0 right-0 bg-rose-500 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl shadow-xs uppercase tracking-wider z-10 flex items-center gap-1.5">
-                    <i data-lucide="zap" class="w-3 h-3"></i> Fast-Track Urgent
-                </div>
-                ` : ''}
-
-                <div class="flex justify-between items-start mb-5">
-                    <div>
-                        <div class="flex items-center gap-2.5 mb-2">
-                            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Order ID</span>
-                            <span class="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-md">#${order.id.substring(0,8)}</span>
+            <div class="bg-white dark:bg-slate-900 rounded-3xl border ${isUrgent ? 'border-rose-300 dark:border-rose-800/80 shadow-rose-500/5' : 'border-slate-200/80 dark:border-slate-800'} overflow-hidden shadow-xs transition-all duration-200 hover:shadow-md">
+                
+                <!-- ACCORDION HEADER (CLICK TO EXPAND / COLLAPSE) -->
+                <div onclick="toggleOrderAccordion('${order.id}')" class="p-5 flex items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-850/50">
+                    <div class="flex items-center gap-3.5 min-w-0">
+                        <div class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0 transform transition-transform duration-200 ${isExpanded ? 'rotate-180 bg-blue-50 dark:bg-blue-950 text-blue-600' : ''}">
+                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
                         </div>
-                        <div class="flex items-center gap-2 text-slate-800">
-                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
-                            <span class="font-bold text-sm text-slate-900">${order.customer_name || 'Guest Customer'}</span>
-                        </div>
-                        <div class="flex items-center gap-2 text-slate-500 text-xs mt-1">
-                            <i data-lucide="phone" class="w-4 h-4 text-slate-400"></i>
-                            <span class="font-medium">${order.customer_phone || 'No phone provided'}</span>
+                        
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span onclick="event.stopPropagation(); copyText('#${order.id.substring(0,8)}', 'Order ID')" class="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" title="Click to copy Order ID">
+                                    #${order.id.substring(0,8)}
+                                </span>
+                                <span class="font-bold text-sm text-slate-900 dark:text-white truncate">${order.customer_name || 'Guest Customer'}</span>
+                                ${isUrgent ? `
+                                <span class="inline-flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
+                                    <i data-lucide="zap" class="w-3 h-3 text-rose-500"></i> Fast-Track
+                                </span>
+                                ` : ''}
+                            </div>
+                            
+                            <div class="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                <span>${order.customer_phone || 'No phone'}</span>
+                                <span>•</span>
+                                <span class="font-medium text-slate-600 dark:text-slate-400">${files.length} ${files.length === 1 ? 'file' : 'files'} (${totalPrints} prints)</span>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="text-right flex flex-col items-end pt-1">
-                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status</div>
-                        <div class="flex items-center gap-2">
-                            ${(order.status === 'Pending' || order.status === 'Paid') ? `
-                                <button onclick="cancelOrder('${order.id}')" class="text-slate-400 hover:text-red-600 transition-colors p-1" title="Cancel Order">
-                                    <i data-lucide="x-circle" class="w-4 h-4"></i>
-                                </button>
-                            ` : ''}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusBadgeClass}">
+                    <div class="flex items-center gap-3 shrink-0">
+                        <div class="text-right">
+                            <div class="text-base font-extrabold text-slate-900 dark:text-white">₹${order.total_amount}</div>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeClass}">
                                 ${order.status}
                             </span>
                         </div>
                     </div>
                 </div>
 
-                ${rawNotes ? `
-                <div class="mb-5 bg-slate-50/80 border border-slate-200/60 rounded-2xl p-3.5 text-xs text-slate-700">
-                    <div class="font-bold text-slate-500 text-[10px] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                        <i data-lucide="clipboard-list" class="w-3.5 h-3.5 text-slate-400"></i> Customer Instructions & Upgrades
+                <!-- ACCORDION EXPANDABLE BODY -->
+                ${isExpanded ? `
+                <div class="p-6 pt-2 border-t border-slate-100 dark:border-slate-800/80 fade-in">
+                    <!-- CUSTOMER ACTIONS & CANCEL -->
+                    <div class="flex justify-between items-center mb-4 pt-2">
+                        <div class="flex items-center gap-2">
+                            ${cleanPhone ? `
+                            <a href="${waLink}" target="_blank" onclick="event.stopPropagation()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold transition-all" title="Message customer on WhatsApp">
+                                <i data-lucide="message-circle" class="w-3.5 h-3.5 text-emerald-600"></i> WhatsApp
+                            </a>
+                            ` : ''}
+                            <button onclick="event.stopPropagation(); copyText('${order.id}', 'Full UUID')" class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-semibold transition-all" title="Copy Full Order ID">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy ID
+                            </button>
+                        </div>
+
+                        ${(order.status === 'Pending' || order.status === 'Paid') ? `
+                        <button onclick="cancelOrder('${order.id}')" class="text-xs text-red-500 hover:text-red-700 font-semibold flex items-center gap-1 transition-colors">
+                            <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cancel Order
+                        </button>
+                        ` : ''}
                     </div>
-                    <div class="flex flex-wrap gap-1.5 items-center">
-                        ${cleanNotesMarkup}
+
+                    ${rawNotes ? `
+                    <div class="mb-5 bg-slate-50/80 dark:bg-slate-950/80 border border-slate-200/60 dark:border-slate-800 rounded-2xl p-3.5 text-xs text-slate-700 dark:text-slate-300">
+                        <div class="font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 text-[10px]">
+                            <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Customer Instructions & Add-ons
+                        </div>
+                        <div class="flex flex-wrap gap-1.5 items-center">
+                            ${cleanNotesMarkup}
+                        </div>
                     </div>
+                    ` : ''}
+
+                    <!-- FILE CARDS GRID WITH HOVER PREVIEW -->
+                    <div class="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        ${files.map(f => {
+                            const fileUrl = `https://mzkizzakuporgzljealz.supabase.co/storage/v1/object/public/print-files/${f.storage_path}`;
+                            const isImage = f.filename.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/);
+                            return `
+                            <div class="flex flex-col border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-850 shadow-2xs hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group"
+                                onmouseenter="showFileHover(event, '${escapeQuotes(f.filename)}', ${f.pages || 1}, ${f.copies || 1}, '${f.color_mode}', '${fileUrl}', ${Boolean(isImage)})"
+                                onmousemove="moveFileHover(event)"
+                                onmouseleave="hideFileHover()">
+                                
+                                <div class="h-20 bg-slate-50/80 dark:bg-slate-950 flex items-center justify-center overflow-hidden relative border-b border-slate-100 dark:border-slate-800">
+                                    ${isImage 
+                                        ? `<img src="${fileUrl}" class="w-full h-full object-cover" />` 
+                                        : `
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-8 h-10 bg-white dark:bg-slate-900 rounded-lg shadow-2xs border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center">
+                                                <i data-lucide="file-text" class="w-4 h-4 text-red-500"></i>
+                                                <span class="text-[6px] font-black text-red-600 uppercase">PDF</span>
+                                            </div>
+                                            <div class="text-[10px] font-bold text-slate-500 dark:text-slate-400">Document File</div>
+                                        </div>
+                                        `
+                                    }
+                                </div>
+                                
+                                <div class="p-3 flex flex-col gap-1.5">
+                                    <div class="text-[11px] font-bold truncate text-slate-900 dark:text-white" title="${f.filename}">${f.filename}</div>
+                                    <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                        <span class="inline-flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700">
+                                            <i data-lucide="files" class="w-3 h-3 text-slate-400"></i> ${f.pages || 1} ${f.pages === 1 ? 'Page' : 'Pages'}
+                                        </span>
+                                        <span class="inline-flex items-center gap-1 ${f.color_mode === 'color' ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800' : 'bg-slate-100/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700'} font-bold px-2 py-0.5 rounded-md">
+                                            ${f.copies}x ${f.color_mode === 'color' ? 'Color' : 'B&W'}
+                                        </span>
+                                        ${(f.page_range && f.page_range !== 'All') ? `<span class="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded-md text-[9px] font-bold">p.${f.page_range}</span>` : ''}
+                                    </div>
+                                    <div class="flex justify-between items-center text-[10px] pt-1 border-t border-slate-100 dark:border-slate-800 mt-1">
+                                        <span class="text-slate-400 font-medium">Total: <strong class="text-slate-700 dark:text-slate-300">${(f.pages || 1) * (f.copies || 1)} prints</strong></span>
+                                        <a href="${fileUrl}" target="_blank" onclick="event.stopPropagation()" class="text-blue-600 dark:text-blue-400 hover:underline font-bold flex items-center gap-0.5">
+                                            View <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+
+                    <!-- FINANCIALS & PAYMENT -->
+                    <div class="grid grid-cols-2 gap-3 p-3.5 bg-slate-50/70 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800 rounded-2xl mb-2">
+                        <div>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Total Amount</div>
+                            <div class="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">₹${order.total_amount}</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Payment Mode</div>
+                            <div class="text-xs font-bold text-slate-700 dark:text-slate-300 capitalize flex items-center gap-1.5 pt-1">
+                                ${order.payment_mode === 'online' 
+                                    ? '<i data-lucide="credit-card" class="w-3.5 h-3.5 text-emerald-600"></i> Online (Prepaid)' 
+                                    : '<i data-lucide="banknote" class="w-3.5 h-3.5 text-slate-500"></i> Pay at Counter'}
+                            </div>
+                        </div>
+                    </div>
+
+                    ${otpSection}
                 </div>
                 ` : ''}
-
-                <!-- FILE CARDS GRID -->
-                <div class="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    ${(order.printhub_files || []).map(f => {
-                        const fileUrl = `https://mzkizzakuporgzljealz.supabase.co/storage/v1/object/public/print-files/${f.storage_path}`;
-                        const isImage = f.filename.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/);
-                        return `
-                        <div class="flex flex-col border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs hover:border-slate-300 transition-all">
-                            <div class="h-20 bg-slate-50/80 flex items-center justify-center overflow-hidden relative border-b border-slate-100">
-                                ${isImage 
-                                    ? `<img src="${fileUrl}" class="w-full h-full object-cover" />` 
-                                    : `
-                                    <div class="flex items-center gap-2">
-                                        <div class="w-8 h-10 bg-white rounded-lg shadow-2xs border border-slate-200 flex flex-col items-center justify-center">
-                                            <i data-lucide="file-text" class="w-4 h-4 text-red-500"></i>
-                                            <span class="text-[6px] font-black text-red-600 uppercase">PDF</span>
-                                        </div>
-                                        <div class="text-[10px] font-bold text-slate-500">Document Ready</div>
-                                    </div>
-                                    `
-                                }
-                            </div>
-                            
-                            <div class="p-3 flex flex-col gap-1.5">
-                                <div class="text-[11px] font-bold truncate text-slate-900" title="${f.filename}">${f.filename}</div>
-                                <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
-                                    <span class="inline-flex items-center gap-1 bg-slate-100/80 text-slate-700 font-bold px-2 py-0.5 rounded-md border border-slate-200/60">
-                                        <i data-lucide="files" class="w-3 h-3 text-slate-400"></i> ${f.pages || 1} ${f.pages === 1 ? 'Page' : 'Pages'}
-                                    </span>
-                                    <span class="inline-flex items-center gap-1 ${f.color_mode === 'color' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100/80 text-slate-700 border border-slate-200/60'} font-bold px-2 py-0.5 rounded-md">
-                                        ${f.copies}x ${f.color_mode === 'color' ? 'Color' : 'B&W'}
-                                    </span>
-                                    ${(f.page_range && f.page_range !== 'All') ? `<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded-md text-[9px] font-bold">p.${f.page_range}</span>` : ''}
-                                </div>
-                                <div class="flex justify-between items-center text-[10px] pt-1 border-t border-slate-100 mt-1">
-                                    <span class="text-slate-400 font-medium">Total: <strong class="text-slate-700">${(f.pages || 1) * (f.copies || 1)} prints</strong></span>
-                                    <a href="${fileUrl}" target="_blank" class="text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center gap-0.5">
-                                        View <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                        `;
-                    }).join('')}
-                </div>
-
-                <!-- FINANCIALS BAR -->
-                <div class="grid grid-cols-2 gap-3 p-3.5 bg-slate-50/70 border border-slate-100 rounded-2xl">
-                    <div>
-                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Total Amount</div>
-                        <div class="text-xl font-extrabold text-slate-900 tracking-tight">₹${order.total_amount}</div>
-                    </div>
-                    <div>
-                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Payment Mode</div>
-                        <div class="text-xs font-bold text-slate-700 capitalize flex items-center gap-1.5 pt-1">
-                            ${order.payment_mode === 'online' 
-                                ? '<i data-lucide="credit-card" class="w-3.5 h-3.5 text-emerald-600"></i> Online (Prepaid)' 
-                                : '<i data-lucide="banknote" class="w-3.5 h-3.5 text-slate-500"></i> Pay at Counter'}
-                        </div>
-                    </div>
-                </div>
-
-                ${otpSection}
             </div>
             `;
         });
 
         ordersContainer.innerHTML = html;
         if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
+    }
+
+    function escapeQuotes(str) {
+        return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     }
 </script>
 </body>
