@@ -8,8 +8,9 @@
     <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="lib/lucide.min.js?v=2"></script>
-        <script src="lib/pdf-lib.min.js?v=2"></script>
-        <script src="lib/pdf.min.js?v=2"></script>
+    <script src="lib/pdf-lib.min.js?v=2"></script>
+    <script src="lib/pdf.min.js?v=2"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -164,6 +165,41 @@
             </div>
         </div>
 
+        <!-- PAYMENT METHOD SELECTION -->
+        <div id="payment-selection-container" class="fade-in bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 mt-6 mb-12 hidden">
+            <h3 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                <i data-lucide="credit-card" class="w-5 h-5 text-blue-600"></i> Payment Mode
+            </h3>
+            <p class="text-xs text-slate-500 mb-4">Choose how you would like to pay for your print order</p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <label id="opt-counter-label" onclick="selectPaymentMethod('counter')" class="relative flex items-center justify-between p-4 rounded-2xl border-2 border-blue-600 bg-blue-50/50 cursor-pointer transition-all shadow-xs">
+                    <div class="flex items-center gap-3">
+                        <input type="radio" name="pay_mode" value="counter" id="pay_mode_counter" checked class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                        <div>
+                            <span class="block font-bold text-slate-800 text-sm">Pay at Counter</span>
+                            <span class="block text-xs text-slate-500">Cash or UPI upon pickup</span>
+                        </div>
+                    </div>
+                    <i data-lucide="banknote" class="w-5 h-5 text-slate-400"></i>
+                </label>
+
+                <label id="opt-online-label" onclick="selectPaymentMethod('online')" class="relative flex items-center justify-between p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition-all">
+                    <div class="flex items-center gap-3">
+                        <input type="radio" name="pay_mode" value="online" id="pay_mode_online" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                        <div>
+                            <span class="block font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                                Pay Online
+                                <span class="bg-blue-100 text-blue-700 text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase">Instant</span>
+                            </span>
+                            <span class="block text-xs text-slate-500">UPI, QR, Cards via Razorpay</span>
+                        </div>
+                    </div>
+                    <i data-lucide="zap" class="w-5 h-5 text-blue-600"></i>
+                </label>
+            </div>
+        </div>
+
         </div>
         
         <!-- BOTTOM CHECKOUT BAR -->
@@ -262,6 +298,34 @@ let RATES = { bw: 2.0, color: 10.0 };
 let SHOP_ONLINE = true;
 let currentShopId = null;
 let currentShopName = "PrintHub";
+let PAYMENT_CONFIG = { enabled: false, key_id: '' };
+let currentPaymentMethod = 'counter';
+
+function selectPaymentMethod(mode) {
+    currentPaymentMethod = mode;
+    const counterLabel = document.getElementById('opt-counter-label');
+    const onlineLabel = document.getElementById('opt-online-label');
+    const counterRadio = document.getElementById('pay_mode_counter');
+    const onlineRadio = document.getElementById('pay_mode_online');
+
+    if (mode === 'online') {
+        if (onlineRadio) onlineRadio.checked = true;
+        if (onlineLabel) {
+            onlineLabel.className = "relative flex items-center justify-between p-4 rounded-2xl border-2 border-blue-600 bg-blue-50/50 cursor-pointer transition-all shadow-xs";
+        }
+        if (counterLabel) {
+            counterLabel.className = "relative flex items-center justify-between p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition-all";
+        }
+    } else {
+        if (counterRadio) counterRadio.checked = true;
+        if (counterLabel) {
+            counterLabel.className = "relative flex items-center justify-between p-4 rounded-2xl border-2 border-blue-600 bg-blue-50/50 cursor-pointer transition-all shadow-xs";
+        }
+        if (onlineLabel) {
+            onlineLabel.className = "relative flex items-center justify-between p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition-all";
+        }
+    }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     initializeTenant();
@@ -348,11 +412,33 @@ async function initializeTenant() {
                 if (settings.price_bw) RATES.bw = parseFloat(settings.price_bw);
                 if (settings.price_color) RATES.color = parseFloat(settings.price_color);
                 
-                if (settings.offer_banner && settings.offer_banner.trim() !== '') {
+                const rawBanner = settings.offer_banner || '';
+                const match = rawBanner.match(/\[\[PAYMENT_CONFIG:(.*?)\]\]/);
+                if (match) {
+                    try {
+                        const parsed = JSON.parse(match[1]);
+                        PAYMENT_CONFIG.enabled = !!parsed.enabled;
+                        PAYMENT_CONFIG.key_id = parsed.key_id || '';
+                    } catch(e) {}
+                }
+
+                const payContainer = document.getElementById('payment-selection-container');
+                if (payContainer) {
+                    if (PAYMENT_CONFIG.enabled && PAYMENT_CONFIG.key_id) {
+                        payContainer.classList.remove('hidden');
+                        selectPaymentMethod('online');
+                    } else {
+                        payContainer.classList.add('hidden');
+                        selectPaymentMethod('counter');
+                    }
+                }
+
+                const cleanBanner = rawBanner.replace(/\[\[PAYMENT_CONFIG:.*?\]\]/g, '').trim();
+                if (cleanBanner !== '') {
                     const banner = document.getElementById('offer-banner');
                     const text = document.getElementById('offer-text');
                     if (banner && text) {
-                        text.textContent = settings.offer_banner;
+                        text.textContent = cleanBanner;
                         banner.classList.remove('hidden');
                         banner.classList.add('flex');
                     }
@@ -788,10 +874,60 @@ function handleCheckout() {
         return;
     }
     
-    submitOrder();
+    const totalAmount = calculateTotal();
+
+    // Trigger Razorpay if Online Payment is enabled and selected
+    if (currentPaymentMethod === 'online' && PAYMENT_CONFIG.enabled && PAYMENT_CONFIG.key_id && totalAmount > 0) {
+        if (typeof Razorpay === 'undefined') {
+            alert('Razorpay gateway SDK failed to load. Please switch to Pay at Counter or check your internet connection.');
+            return;
+        }
+
+        const options = {
+            key: PAYMENT_CONFIG.key_id,
+            amount: Math.round(totalAmount * 100), // In paise (1 INR = 100 paise)
+            currency: "INR",
+            name: currentShopName || "PrintHub",
+            description: `Print Order (${filesData.length} ${filesData.length === 1 ? 'file' : 'files'})`,
+            image: "https://img.magnific.com/free-vector/printer-with-paper-illustration_138676-2396.jpg",
+            handler: function (response) {
+                if (response && response.razorpay_payment_id) {
+                    submitOrder(response.razorpay_payment_id);
+                } else {
+                    submitOrder();
+                }
+            },
+            prefill: {
+                name: name,
+                contact: phone,
+                email: "customer@printhub.local"
+            },
+            theme: {
+                color: "#2563eb"
+            },
+            modal: {
+                ondismiss: function() {
+                    console.log("Razorpay modal dismissed by customer.");
+                }
+            }
+        };
+
+        try {
+            const rzp = new Razorpay(options);
+            rzp.on('payment.failed', function (resp) {
+                showError("Payment Failed", resp.error?.description || "Online payment was unsuccessful. You may retry or choose Pay at Counter.");
+            });
+            rzp.open();
+        } catch(err) {
+            console.error("Razorpay initiation error:", err);
+            showError("Payment Error", "Unable to open Razorpay payment gateway: " + err.message);
+        }
+    } else {
+        submitOrder();
+    }
 }
 
-async function submitOrder() {
+async function submitOrder(razorpayPaymentId = null) {
     if (filesData.length === 0) return alert("Please add at least one document");
 
     const name = document.getElementById('c_name').value.trim();
@@ -805,6 +941,10 @@ async function submitOrder() {
     
     if (addons.length > 0) {
         notes = addons.join(" ") + (notes ? " - " + notes : "");
+    }
+
+    if (razorpayPaymentId) {
+        notes = `[ONLINE_PREPAID: ${razorpayPaymentId}] ` + (notes || '');
     }
 
     const totalAmount = calculateTotal();

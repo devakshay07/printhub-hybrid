@@ -294,6 +294,36 @@
                         <input type="text" id="set_offer_banner" placeholder="e.g. Exam special: 20% off all thesis prints" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:bg-white focus:border-blue-600 outline-none">
                     </div>
                 </div>
+
+                <!-- ONLINE PAYMENT GATEWAY CONFIGURATION -->
+                <div class="pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h3 class="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                                <i data-lucide="credit-card" class="w-4 h-4 text-blue-600"></i> Online Payments (Razorpay)
+                            </h3>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Allow customers to pay via UPI, QR, and Cards at checkout</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="set_online_payment" class="sr-only peer" onchange="toggleRazorpayConfig(this.checked)">
+                            <div class="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    <div id="razorpay-config-box" class="space-y-3 p-3.5 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-2xl transition-all">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-xs font-medium text-slate-600 dark:text-slate-300">Razorpay Key ID</label>
+                                <span class="text-[10px] text-slate-400 font-mono">rzp_live_... / rzp_test_...</span>
+                            </div>
+                            <input type="text" id="set_razorpay_key" placeholder="rzp_test_51xxxxxxxxxxxxxx" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white font-mono focus:border-blue-600 outline-none">
+                        </div>
+                        <div class="flex items-start gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5"></i>
+                            <span>Public Key ID only. Secret keys are never requested or stored on client devices.</span>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="pt-2 flex gap-3">
                     <button type="button" onclick="closeSettings()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-2.5 rounded-xl text-xs transition-colors">Cancel</button>
@@ -994,6 +1024,8 @@
             const badgeClass = o.status === 'Paid' ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
                                o.status === 'Cancelled' ? 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800';
 
+            const isOnline = (o.payment_mode === 'online') || (o.notes && (o.notes.includes('[ONLINE_PREPAID') || o.notes.includes('[ONLINE]')));
+
             return `
                 <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td class="px-6 py-4 font-medium text-slate-500 dark:text-slate-400">${formattedDate}</td>
@@ -1002,7 +1034,9 @@
                         <div class="font-bold text-slate-900 dark:text-white">${o.customer_name || 'Guest'}</div>
                         <div class="text-[10px] text-slate-400">${o.customer_phone || ''}</div>
                     </td>
-                    <td class="px-6 py-4 capitalize font-medium text-slate-700 dark:text-slate-300">${o.payment_mode === 'online' ? 'Online' : 'Counter'}</td>
+                    <td class="px-6 py-4 capitalize font-medium text-slate-700 dark:text-slate-300">
+                        ${isOnline ? '<span class="text-emerald-600 dark:text-emerald-400 font-bold">Online (Razorpay)</span>' : 'Counter'}
+                    </td>
                     <td class="px-6 py-4 font-bold text-slate-900 dark:text-white">₹${amt.toFixed(2)}</td>
                     <td class="px-6 py-4">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}">
@@ -1023,7 +1057,8 @@
         
         let csv = 'Order ID,Date,Customer Name,Phone,Amount,Status,Payment Mode\n';
         allOrders.forEach(o => {
-            csv += `"${o.id}","${o.created_at}","${o.customer_name || ''}","${o.customer_phone || ''}","${o.total_amount}","${o.status}","${o.payment_mode || 'cash'}"\n`;
+            const isOnline = (o.payment_mode === 'online') || (o.notes && (o.notes.includes('[ONLINE_PREPAID') || o.notes.includes('[ONLINE]')));
+            csv += `"${o.id}","${o.created_at}","${o.customer_name || ''}","${o.customer_phone || ''}","${o.total_amount}","${o.status}","${isOnline ? 'online' : 'counter'}"\n`;
         });
         
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -1142,6 +1177,20 @@
     }
 
     let settingsId = null;
+
+    window.toggleRazorpayConfig = function(enabled) {
+        const box = document.getElementById('razorpay-config-box');
+        const keyInput = document.getElementById('set_razorpay_key');
+        if (!box) return;
+        if (enabled) {
+            box.classList.remove('opacity-40', 'pointer-events-none');
+            if (keyInput) keyInput.disabled = false;
+        } else {
+            box.classList.add('opacity-40', 'pointer-events-none');
+            if (keyInput) keyInput.disabled = true;
+        }
+    }
+
     window.openSettings = async function() {
         if (!shopId) return;
         document.getElementById('settings-modal').classList.remove('hidden');
@@ -1156,12 +1205,47 @@
             }
             
             const settings = await supabaseFetch(`/rest/v1/printhub_settings?shop_id=eq.${shopId}`);
+            let onlineEnabled = false;
+            let rzpKey = '';
+            let bannerText = '';
+
             if (settings && settings.length > 0) {
                 settingsId = settings[0].id;
                 document.getElementById('set_price_bw').value = settings[0].price_bw;
                 document.getElementById('set_price_color').value = settings[0].price_color;
-                document.getElementById('set_offer_banner').value = settings[0].offer_banner || '';
+                
+                const rawBanner = settings[0].offer_banner || '';
+                const match = rawBanner.match(/\[\[PAYMENT_CONFIG:(.*?)\]\]/);
+                if (match) {
+                    try {
+                        const parsed = JSON.parse(match[1]);
+                        onlineEnabled = !!parsed.enabled;
+                        rzpKey = parsed.key_id || '';
+                    } catch(e) {}
+                } else {
+                    // Check local storage backup
+                    const localCfg = localStorage.getItem(`printhub_pay_cfg_${shopId}`);
+                    if (localCfg) {
+                        try {
+                            const parsed = JSON.parse(localCfg);
+                            onlineEnabled = !!parsed.enabled;
+                            rzpKey = parsed.key_id || '';
+                        } catch(e) {}
+                    }
+                }
+                bannerText = rawBanner.replace(/\[\[PAYMENT_CONFIG:.*?\]\]/g, '').trim();
             }
+
+            document.getElementById('set_offer_banner').value = bannerText;
+            const toggleEl = document.getElementById('set_online_payment');
+            if (toggleEl) {
+                toggleEl.checked = onlineEnabled;
+                toggleRazorpayConfig(onlineEnabled);
+            }
+            const keyEl = document.getElementById('set_razorpay_key');
+            if (keyEl) keyEl.value = rzpKey;
+
+            if (window.lucide) { try { lucide.createIcons(); } catch(e){} }
         } catch(e) {
             sysLog("Error loading settings: " + e.message);
         }
@@ -1185,10 +1269,27 @@
                 logo_url: document.getElementById('set_logo_url').value
             });
             
+            const isOnlinePayment = !!document.getElementById('set_online_payment')?.checked;
+            const razorpayKey = (document.getElementById('set_razorpay_key')?.value || '').trim();
+            const cleanBanner = (document.getElementById('set_offer_banner')?.value || '').trim();
+
+            const payConfig = {
+                enabled: isOnlinePayment,
+                key_id: razorpayKey
+            };
+
+            // Save to localStorage cache immediately
+            localStorage.setItem(`printhub_pay_cfg_${shopId}`, JSON.stringify(payConfig));
+
+            // Pack clean config tag into offer_banner for cross-device sync
+            const packedBanner = cleanBanner 
+                ? `${cleanBanner} [[PAYMENT_CONFIG:${JSON.stringify(payConfig)}]]`
+                : `[[PAYMENT_CONFIG:${JSON.stringify(payConfig)}]]`;
+
             const setPayload = {
                 price_bw: parseFloat(document.getElementById('set_price_bw').value),
                 price_color: parseFloat(document.getElementById('set_price_color').value),
-                offer_banner: document.getElementById('set_offer_banner').value
+                offer_banner: packedBanner
             };
             
             if (settingsId) {
@@ -1198,7 +1299,7 @@
                 await supabaseFetch(`/rest/v1/printhub_settings`, 'POST', setPayload);
             }
             
-            sysLog("Settings updated successfully");
+            sysLog("Settings & payment config updated successfully");
             document.getElementById('shop-name').textContent = document.getElementById('set_shop_name').value;
             closeSettings();
         } catch(e) {
@@ -1323,10 +1424,18 @@
                 }
             }
 
+            const isOnlinePaid = (order.payment_mode === 'online') || rawNotes.includes('[ONLINE_PREPAID') || rawNotes.includes('[ONLINE]');
+            let onlinePayId = '';
+            const payMatch = rawNotes.match(/\[ONLINE_PREPAID:\s*([a-zA-Z0-9_]+)\]/);
+            if (payMatch) onlinePayId = payMatch[1];
+
             const cleanNotesMarkup = rawNotes
+                .replace(/\[ONLINE_PREPAID:\s*[a-zA-Z0-9_]+\]/g, '')
+                .replace(/\[ONLINE\]/g, '')
                 .replace(/\[URGENT\]/g, '<span class="inline-flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="zap" class="w-3 h-3 text-rose-500"></i> Urgent</span>')
                 .replace(/\[SPIRAL BIND\]/g, '<span class="inline-flex items-center gap-1 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="book-open" class="w-3 h-3 text-purple-500"></i> Spiral Bind</span>')
-                .replace(/\[CLEAR FOLDER\]/g, '<span class="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="folder" class="w-3 h-3 text-blue-500"></i> Clear Folder</span>');
+                .replace(/\[CLEAR FOLDER\]/g, '<span class="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="folder" class="w-3 h-3 text-blue-500"></i> Clear Folder</span>')
+                .trim();
 
             const cleanPhone = (order.customer_phone || '').replace(/[^0-9]/g, '');
             const waLink = cleanPhone ? `https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(`Hello ${order.customer_name || 'Customer'}, your print job #${order.id.slice(0,8)} is ready at PrintHub!`)}` : '#';
@@ -1347,6 +1456,11 @@
                                     #${order.id.substring(0,8)}
                                 </span>
                                 <span class="font-bold text-sm text-slate-900 dark:text-white truncate">${order.customer_name || 'Guest Customer'}</span>
+                                ${isOnlinePaid ? `
+                                <span class="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
+                                    <i data-lucide="credit-card" class="w-3 h-3 text-emerald-500"></i> Paid Online
+                                </span>
+                                ` : ''}
                                 ${isUrgent ? `
                                 <span class="inline-flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
                                     <i data-lucide="zap" class="w-3 h-3 text-rose-500"></i> Fast-Track
@@ -1471,10 +1585,15 @@
                                 </div>
                                 <div>
                                     <div class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Payment Mode</div>
-                                    <div class="text-xs font-bold text-slate-800 dark:text-slate-200 capitalize flex items-center gap-1.5 pt-1">
-                                        ${order.payment_mode === 'online' 
-                                            ? '<i data-lucide="credit-card" class="w-3.5 h-3.5 text-emerald-600"></i> Online (Prepaid)' 
-                                            : '<i data-lucide="banknote" class="w-3.5 h-3.5 text-slate-500"></i> Pay at Counter'}
+                                    <div class="text-xs font-bold text-slate-800 dark:text-slate-200 flex flex-col gap-0.5 pt-1">
+                                        ${isOnlinePaid 
+                                            ? `<div class="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                                                <i data-lucide="credit-card" class="w-3.5 h-3.5"></i> Online (Razorpay)
+                                               </div>
+                                               ${onlinePayId ? `<span class="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate" title="Razorpay Payment ID: ${onlinePayId}">Ref: ${onlinePayId}</span>` : ''}` 
+                                            : `<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                                                <i data-lucide="banknote" class="w-3.5 h-3.5 text-slate-500"></i> Pay at Counter
+                                               </div>`}
                                     </div>
                                 </div>
                             </div>
