@@ -30,9 +30,22 @@
         
         .hide { display: none !important; }
 
-        /* Smooth accordion & card transitions */
-        .accordion-content {
-            transition: max-height 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+        * { -webkit-tap-highlight-color: transparent; }
+
+        /* Silky smooth hardware-accelerated CSS Grid Accordion */
+        .accordion-body {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+            opacity: 0;
+        }
+        .accordion-body.open {
+            grid-template-rows: 1fr;
+            opacity: 1;
+        }
+        .accordion-inner {
+            overflow: hidden;
+            min-height: 0;
         }
 
         .fade-in { animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
@@ -717,13 +730,19 @@
                 counterEl.textContent = `${pendingCount} active in queue (${allOrders.length} total)`;
             }
 
+            // Only re-render if data has changed to prevent DOM jump/flicker
+            const currentHash = (orders || []).map(o => `${o.id}:${o.status}:${o.otp_verified}`).join('|');
+            const hasChanged = (currentHash !== window._lastOrdersHash);
+            window._lastOrdersHash = currentHash;
+
             if (isReportsView) {
                 renderReports();
-            } else {
+            } else if (hasChanged || !window._initialRenderDone) {
                 const activeEl = document.activeElement;
                 if (activeEl && activeEl.tagName === 'INPUT' && activeEl.closest('#orders-container')) {
                     return; 
                 }
+                window._initialRenderDone = true;
                 filterAndRenderOrders();
             }
         } catch (e) {
@@ -747,11 +766,87 @@
         renderOrders(filtered);
     }
 
-    // ACCORDION TOGGLE (ONE CARD OPEN AT A TIME)
+    // ACCORDION TOGGLE (SILKY-SMOOTH HARDWARE-ACCELERATED IN-PLACE EXPAND + AUTO-CENTER SCROLL)
     window.toggleOrderAccordion = function(orderId) {
-        expandedOrderId = (expandedOrderId === orderId) ? null : orderId;
-        filterAndRenderOrders();
+        const isOpening = (expandedOrderId !== orderId);
+        const prevOrderId = expandedOrderId;
+
+        // 1. Smoothly collapse previous card
+        if (prevOrderId && prevOrderId !== orderId) {
+            const prevBody = document.getElementById(`body-${prevOrderId}`);
+            const prevChevron = document.getElementById(`chevron-${prevOrderId}`);
+            const prevCard = document.getElementById(`order-card-${prevOrderId}`);
+            if (prevBody) prevBody.classList.remove('open');
+            if (prevChevron) {
+                prevChevron.classList.remove('rotate-180', 'bg-blue-50', 'dark:bg-blue-950', 'text-blue-600', 'dark:text-blue-400');
+            }
+            if (prevCard) {
+                prevCard.classList.remove('ring-2', 'ring-blue-500/20');
+            }
+        }
+
+        // 2. Toggle target card
+        const card = document.getElementById(`order-card-${orderId}`);
+        const body = document.getElementById(`body-${orderId}`);
+        const chevron = document.getElementById(`chevron-${orderId}`);
+
+        if (isOpening) {
+            expandedOrderId = orderId;
+            if (body) body.classList.add('open');
+            if (chevron) {
+                chevron.classList.add('rotate-180', 'bg-blue-50', 'dark:bg-blue-950', 'text-blue-600', 'dark:text-blue-400');
+            }
+            if (card) {
+                card.classList.add('ring-2', 'ring-blue-500/20');
+            }
+
+            // Lazy-load PDF thumbnails for this newly opened card
+            loadOrderThumbnails(orderId);
+
+            // 3. SMOOTH AUTO-CENTER SCROLL: Centers the expanded card perfectly in the viewport
+            if (card) {
+                setTimeout(() => {
+                    card.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                        inline: 'nearest'
+                    });
+                }, 80);
+            }
+        } else {
+            expandedOrderId = null;
+            if (body) body.classList.remove('open');
+            if (chevron) {
+                chevron.classList.remove('rotate-180', 'bg-blue-50', 'dark:bg-blue-950', 'text-blue-600', 'dark:text-blue-400');
+            }
+            if (card) {
+                card.classList.remove('ring-2', 'ring-blue-500/20');
+            }
+        }
     };
+
+    function loadOrderThumbnails(orderId) {
+        const order = allOrders.find(o => o.id === orderId);
+        if (!order || !order.printhub_files) return;
+
+        order.printhub_files.forEach((f, idx) => {
+            const isImage = f.filename.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/);
+            if (!isImage) {
+                const fileUrl = `https://mzkizzakuporgzljealz.supabase.co/storage/v1/object/public/print-files/${f.storage_path}`;
+                const fId = `fthumb_${order.id.substring(0,8)}_${idx}`;
+                getPdfThumbnail(fileUrl).then(dataUrl => {
+                    if (!dataUrl) return;
+                    const ph = document.getElementById(`ph-${fId}`);
+                    const img = document.getElementById(`img-${fId}`);
+                    if (ph && img) {
+                        ph.classList.add('hidden');
+                        img.src = dataUrl;
+                        img.classList.remove('hidden');
+                    }
+                });
+            }
+        });
+    }
 
     // FLOATING POPUP PREVIEW LOGIC
     window.showFileHover = function(e, name, pages, copies, colorMode, url, isImage) {
@@ -1237,12 +1332,12 @@
             const waLink = cleanPhone ? `https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(`Hello ${order.customer_name || 'Customer'}, your print job #${order.id.slice(0,8)} is ready at PrintHub!`)}` : '#';
 
             html += `
-            <div class="bg-white dark:bg-slate-900 rounded-3xl border ${isUrgent ? 'border-rose-300 dark:border-rose-800/80 shadow-rose-500/5' : 'border-slate-200/80 dark:border-slate-800'} overflow-hidden shadow-xs transition-all duration-200 hover:shadow-md">
+            <div id="order-card-${order.id}" class="bg-white dark:bg-slate-900 rounded-3xl border ${isUrgent ? 'border-rose-400 dark:border-rose-800/80 shadow-rose-500/5' : 'border-slate-200/80 dark:border-slate-800'} overflow-hidden shadow-xs transition-all duration-300 hover:shadow-md ${isExpanded ? 'ring-2 ring-blue-500/20' : ''}">
                 
                 <!-- ACCORDION HEADER (CLICK TO EXPAND / COLLAPSE) -->
-                <div onclick="toggleOrderAccordion('${order.id}')" class="p-5 flex items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/60">
+                <div onclick="toggleOrderAccordion('${order.id}')" class="p-5 flex items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/50">
                     <div class="flex items-center gap-3.5 min-w-0">
-                        <div class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0 transform transition-transform duration-200 ${isExpanded ? 'rotate-180 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400' : ''}">
+                        <div id="chevron-${order.id}" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0 transform transition-transform duration-300 ${isExpanded ? 'rotate-180 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400' : ''}">
                             <i data-lucide="chevron-down" class="w-4 h-4"></i>
                         </div>
                         
@@ -1277,118 +1372,117 @@
                     </div>
                 </div>
 
-                <!-- ACCORDION EXPANDABLE BODY -->
-                ${isExpanded ? `
-                <div class="p-6 pt-2 border-t border-slate-100 dark:border-slate-800/80 fade-in">
-                    <!-- CUSTOMER ACTIONS & CANCEL -->
-                    <div class="flex justify-between items-center mb-4 pt-2">
-                        <div class="flex items-center gap-2">
-                            ${cleanPhone ? `
-                            <a href="${waLink}" target="_blank" onclick="event.stopPropagation()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/70 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 rounded-xl text-xs font-bold transition-all" title="Message customer on WhatsApp">
-                                <i data-lucide="message-circle" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"></i> WhatsApp
-                            </a>
+                <!-- ACCORDION EXPANDABLE BODY (CSS GRID HARDWARE-ACCELERATED TRANSITION) -->
+                <div id="body-${order.id}" class="accordion-body ${isExpanded ? 'open' : ''}">
+                    <div class="accordion-inner">
+                        <div class="p-6 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                            <!-- CUSTOMER ACTIONS & CANCEL -->
+                            <div class="flex justify-between items-center mb-4 pt-2">
+                                <div class="flex items-center gap-2">
+                                    ${cleanPhone ? `
+                                    <a href="${waLink}" target="_blank" onclick="event.stopPropagation()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/70 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 rounded-xl text-xs font-bold transition-all" title="Message customer on WhatsApp">
+                                        <i data-lucide="message-circle" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"></i> WhatsApp
+                                    </a>
+                                    ` : ''}
+                                    <button onclick="event.stopPropagation(); copyText('${order.id}', 'Full UUID')" class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold border border-slate-200/60 dark:border-slate-700 transition-all" title="Copy Full Order ID">
+                                        <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy ID
+                                    </button>
+                                </div>
+
+                                ${(order.status === 'Pending' || order.status === 'Paid') ? `
+                                <button onclick="cancelOrder('${order.id}')" class="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-semibold flex items-center gap-1 transition-colors">
+                                    <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cancel Order
+                                </button>
+                                ` : ''}
+                            </div>
+
+                            ${rawNotes ? `
+                            <div class="mb-5 bg-slate-50/80 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 text-xs text-slate-700 dark:text-slate-300">
+                                <div class="font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 text-[10px]">
+                                    <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Customer Instructions & Add-ons
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 items-center">
+                                    ${cleanNotesMarkup}
+                                </div>
+                            </div>
                             ` : ''}
-                            <button onclick="event.stopPropagation(); copyText('${order.id}', 'Full UUID')" class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold border border-slate-200/60 dark:border-slate-700 transition-all" title="Copy Full Order ID">
-                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy ID
-                            </button>
-                        </div>
 
-                        ${(order.status === 'Pending' || order.status === 'Paid') ? `
-                        <button onclick="cancelOrder('${order.id}')" class="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-semibold flex items-center gap-1 transition-colors">
-                            <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cancel Order
-                        </button>
-                        ` : ''}
-                    </div>
+                            <!-- FILE CARDS GRID WITH HOVER PREVIEW -->
+                            <div class="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                ${files.map((f, idx) => {
+                                    const fileUrl = `https://mzkizzakuporgzljealz.supabase.co/storage/v1/object/public/print-files/${f.storage_path}`;
+                                    const isImage = f.filename.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/);
+                                    const fId = `fthumb_${order.id.substring(0,8)}_${idx}`;
+                                    const cachedThumb = !isImage ? pdfThumbCache.get(fileUrl) : null;
 
-                    ${rawNotes ? `
-                    <div class="mb-5 bg-slate-50/80 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 text-xs text-slate-700 dark:text-slate-300">
-                        <div class="font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 text-[10px]">
-                            <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Customer Instructions & Add-ons
-                        </div>
-                        <div class="flex flex-wrap gap-1.5 items-center">
-                            ${cleanNotesMarkup}
-                        </div>
-                    </div>
-                    ` : ''}
-
-                    <!-- FILE CARDS GRID WITH HOVER PREVIEW -->
-                    <div class="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        ${files.map(f => {
-                            const fileUrl = `https://mzkizzakuporgzljealz.supabase.co/storage/v1/object/public/print-files/${f.storage_path}`;
-                            const isImage = f.filename.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/);
-                            const fId = 'fthumb_' + Math.random().toString(36).substring(2, 9);
-                            if (!isImage) {
-                                pdfFilesToRender.push({ fId, fileUrl });
-                            }
-                            const cachedThumb = !isImage ? pdfThumbCache.get(fileUrl) : null;
-
-                            return `
-                            <div class="flex flex-col border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xs hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group"
-                                onmouseenter="showFileHover(event, '${escapeQuotes(f.filename)}', ${f.pages || 1}, ${f.copies || 1}, '${f.color_mode}', '${fileUrl}', ${Boolean(isImage)})"
-                                onmousemove="moveFileHover(event)"
-                                onmouseleave="hideFileHover()">
-                                
-                                <div class="h-28 bg-slate-100 dark:bg-slate-950 flex items-center justify-center overflow-hidden relative border-b border-slate-100 dark:border-slate-800 p-1">
-                                    ${isImage 
-                                        ? `<img src="${fileUrl}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 rounded-t-xl" loading="lazy" />` 
-                                        : (cachedThumb
-                                            ? `<img src="${cachedThumb}" class="w-full h-full object-contain rounded-t-xl bg-white shadow-2xs" alt="Page 1 Preview" />`
-                                            : `
-                                            <div id="ph-${fId}" class="w-full h-full flex flex-col items-center justify-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-950 text-slate-400 dark:text-slate-500">
-                                                <div class="w-8 h-10 bg-white dark:bg-slate-900 rounded-lg shadow-2xs border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center">
-                                                    <i data-lucide="file-text" class="w-4 h-4 text-rose-500"></i>
-                                                    <span class="text-[6px] font-black text-rose-600 uppercase">PDF</span>
-                                                </div>
-                                                <span class="text-[9px] font-semibold text-slate-400 dark:text-slate-500">Loading page 1...</span>
+                                    return `
+                                    <div class="flex flex-col border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xs hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group"
+                                        onmouseenter="showFileHover(event, '${escapeQuotes(f.filename)}', ${f.pages || 1}, ${f.copies || 1}, '${f.color_mode}', '${fileUrl}', ${Boolean(isImage)})"
+                                        onmousemove="moveFileHover(event)"
+                                        onmouseleave="hideFileHover()">
+                                        
+                                        <div class="h-28 bg-slate-100 dark:bg-slate-950 flex items-center justify-center overflow-hidden relative border-b border-slate-100 dark:border-slate-800 p-1">
+                                            ${isImage 
+                                                ? `<img src="${fileUrl}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 rounded-t-xl" loading="lazy" />` 
+                                                : (cachedThumb
+                                                    ? `<img src="${cachedThumb}" class="w-full h-full object-contain rounded-t-xl bg-white shadow-2xs" alt="Page 1 Preview" />`
+                                                    : `
+                                                    <div id="ph-${fId}" class="w-full h-full flex flex-col items-center justify-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-950 text-slate-400 dark:text-slate-500">
+                                                        <div class="w-8 h-10 bg-white dark:bg-slate-900 rounded-lg shadow-2xs border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center">
+                                                            <i data-lucide="file-text" class="w-4 h-4 text-rose-500"></i>
+                                                            <span class="text-[6px] font-black text-rose-600 uppercase">PDF</span>
+                                                        </div>
+                                                        <span class="text-[9px] font-semibold text-slate-400 dark:text-slate-500">Loading page 1...</span>
+                                                    </div>
+                                                    <img id="img-${fId}" class="w-full h-full object-contain hidden rounded-t-xl bg-white shadow-2xs" alt="Page 1 Preview" />
+                                                    `
+                                                )
+                                            }
+                                        </div>
+                                        
+                                        <div class="p-3 bg-white dark:bg-slate-900 flex flex-col gap-1.5">
+                                            <div class="text-[11px] font-bold truncate text-slate-900 dark:text-white" title="${f.filename}">${f.filename}</div>
+                                            <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                                <span class="inline-flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700">
+                                                    <i data-lucide="files" class="w-3 h-3 text-slate-400"></i> ${f.pages || 1} ${f.pages === 1 ? 'Page' : 'Pages'}
+                                                </span>
+                                                <span class="inline-flex items-center gap-1 ${f.color_mode === 'color' ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800' : 'bg-slate-100/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700'} font-bold px-2 py-0.5 rounded-md">
+                                                    ${f.copies}x ${f.color_mode === 'color' ? 'Color' : 'B&W'}
+                                                </span>
+                                                ${(f.page_range && f.page_range !== 'All') ? `<span class="bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded-md text-[9px] font-bold">p.${f.page_range}</span>` : ''}
                                             </div>
-                                            <img id="img-${fId}" class="w-full h-full object-contain hidden rounded-t-xl bg-white shadow-2xs" alt="Page 1 Preview" />
-                                            `
-                                        )
-                                    }
-                                </div>
-                                
-                                <div class="p-3 bg-white dark:bg-slate-900 flex flex-col gap-1.5">
-                                    <div class="text-[11px] font-bold truncate text-slate-900 dark:text-white" title="${f.filename}">${f.filename}</div>
-                                    <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
-                                        <span class="inline-flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700">
-                                            <i data-lucide="files" class="w-3 h-3 text-slate-400"></i> ${f.pages || 1} ${f.pages === 1 ? 'Page' : 'Pages'}
-                                        </span>
-                                        <span class="inline-flex items-center gap-1 ${f.color_mode === 'color' ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800' : 'bg-slate-100/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700'} font-bold px-2 py-0.5 rounded-md">
-                                            ${f.copies}x ${f.color_mode === 'color' ? 'Color' : 'B&W'}
-                                        </span>
-                                        ${(f.page_range && f.page_range !== 'All') ? `<span class="bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded-md text-[9px] font-bold">p.${f.page_range}</span>` : ''}
+                                            <div class="flex justify-between items-center text-[10px] pt-1 border-t border-slate-100 dark:border-slate-800 mt-1">
+                                                <span class="text-slate-400 dark:text-slate-500 font-medium">Total: <strong class="text-slate-700 dark:text-slate-200">${(f.pages || 1) * (f.copies || 1)} prints</strong></span>
+                                                <a href="${fileUrl}" target="_blank" onclick="event.stopPropagation()" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline font-bold flex items-center gap-0.5">
+                                                    View <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
+                                                </a>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="flex justify-between items-center text-[10px] pt-1 border-t border-slate-100 dark:border-slate-800 mt-1">
-                                        <span class="text-slate-400 dark:text-slate-500 font-medium">Total: <strong class="text-slate-700 dark:text-slate-200">${(f.pages || 1) * (f.copies || 1)} prints</strong></span>
-                                        <a href="${fileUrl}" target="_blank" onclick="event.stopPropagation()" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline font-bold flex items-center gap-0.5">
-                                            View <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
-                                        </a>
+                                    `;
+                                }).join('')}
+                            </div>
+
+                            <!-- FINANCIALS & PAYMENT -->
+                            <div class="grid grid-cols-2 gap-3 p-3.5 bg-slate-50/80 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 rounded-2xl mb-2">
+                                <div>
+                                    <div class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Amount</div>
+                                    <div class="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">₹${order.total_amount}</div>
+                                </div>
+                                <div>
+                                    <div class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Payment Mode</div>
+                                    <div class="text-xs font-bold text-slate-800 dark:text-slate-200 capitalize flex items-center gap-1.5 pt-1">
+                                        ${order.payment_mode === 'online' 
+                                            ? '<i data-lucide="credit-card" class="w-3.5 h-3.5 text-emerald-600"></i> Online (Prepaid)' 
+                                            : '<i data-lucide="banknote" class="w-3.5 h-3.5 text-slate-500"></i> Pay at Counter'}
                                     </div>
                                 </div>
                             </div>
-                            `;
-                        }).join('')}
-                    </div>
 
-                    <!-- FINANCIALS & PAYMENT -->
-                    <div class="grid grid-cols-2 gap-3 p-3.5 bg-slate-50/80 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 rounded-2xl mb-2">
-                        <div>
-                            <div class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Amount</div>
-                            <div class="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">₹${order.total_amount}</div>
-                        </div>
-                        <div>
-                            <div class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Payment Mode</div>
-                            <div class="text-xs font-bold text-slate-800 dark:text-slate-200 capitalize flex items-center gap-1.5 pt-1">
-                                ${order.payment_mode === 'online' 
-                                    ? '<i data-lucide="credit-card" class="w-3.5 h-3.5 text-emerald-600"></i> Online (Prepaid)' 
-                                    : '<i data-lucide="banknote" class="w-3.5 h-3.5 text-slate-500"></i> Pay at Counter'}
-                            </div>
+                            ${otpSection}
                         </div>
                     </div>
-
-                    ${otpSection}
                 </div>
-                ` : ''}
             </div>
             `;
         });
@@ -1396,19 +1490,10 @@
         ordersContainer.innerHTML = html;
         if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
 
-        // Render PDF thumbnails for expanded cards
-        pdfFilesToRender.forEach(({ fId, fileUrl }) => {
-            getPdfThumbnail(fileUrl).then(dataUrl => {
-                if (!dataUrl) return;
-                const ph = document.getElementById(`ph-${fId}`);
-                const img = document.getElementById(`img-${fId}`);
-                if (ph && img) {
-                    ph.classList.add('hidden');
-                    img.src = dataUrl;
-                    img.classList.remove('hidden');
-                }
-            });
-        });
+        // Render PDF thumbnails for expanded card
+        if (expandedOrderId) {
+            loadOrderThumbnails(expandedOrderId);
+        }
     }
 
     function escapeQuotes(str) {
