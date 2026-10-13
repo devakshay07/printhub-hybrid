@@ -139,7 +139,7 @@
         </header>
 
         <!-- SEARCH INPUT & LIVE QUEUE STATS -->
-        <div class="mb-6 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between fade-in">
+        <div class="mb-3 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between fade-in">
             <div class="relative flex-1">
                 <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
                 <input type="text" id="search-input" oninput="filterAndRenderOrders()" 
@@ -151,6 +151,19 @@
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span id="active-queue-count">0 orders in station</span>
             </div>
+        </div>
+
+        <!-- QUICK STATUS FILTER TABS -->
+        <div class="mb-6 flex items-center gap-2 overflow-x-auto no-scrollbar fade-in">
+            <button onclick="setStatusFilter('all')" data-filter="all" class="filter-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white dark:bg-blue-600 shadow-xs transition-all">
+                All Orders
+            </button>
+            <button onclick="setStatusFilter('pending')" data-filter="pending" class="filter-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 transition-all">
+                Active Queue
+            </button>
+            <button onclick="setStatusFilter('completed')" data-filter="completed" class="filter-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 transition-all">
+                Completed
+            </button>
         </div>
 
         <!-- SUBSCRIPTION LOCK / TAKEOVER CONTAINER -->
@@ -780,21 +793,41 @@
         }
     }
 
+    let currentStatusFilter = 'all';
+
+    window.setStatusFilter = function(filter) {
+        currentStatusFilter = filter;
+        document.querySelectorAll('.filter-tab-btn').forEach(btn => {
+            const f = btn.getAttribute('data-filter');
+            if (f === filter) {
+                btn.className = 'filter-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white dark:bg-blue-600 shadow-xs transition-all';
+            } else {
+                btn.className = 'filter-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 transition-all';
+            }
+        });
+        filterAndRenderOrders();
+    };
+
     window.filterAndRenderOrders = function() {
-        const query = document.getElementById('search-input').value.toLowerCase().trim();
-        if (!query) {
-            renderOrders(allOrders);
-            return;
+        const query = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+        let filtered = allOrders || [];
+
+        if (currentStatusFilter === 'pending') {
+            filtered = filtered.filter(o => o.status === 'Pending' || (o.status === 'Paid' && !o.otp_verified));
+        } else if (currentStatusFilter === 'completed') {
+            filtered = filtered.filter(o => o.status === 'Printed' || (o.status === 'Paid' && o.otp_verified));
         }
-        
-        const filtered = allOrders.filter(o => 
-            (o.otp && o.otp.toLowerCase() === query) ||
-            (o.id && o.id.toLowerCase().includes(query)) ||
-            (o.customer_name && o.customer_name.toLowerCase().includes(query)) ||
-            (o.customer_phone && o.customer_phone.toLowerCase().includes(query))
-        );
+
+        if (query) {
+            filtered = filtered.filter(o => 
+                (o.otp && o.otp.toLowerCase() === query) ||
+                (o.id && o.id.toLowerCase().includes(query)) ||
+                (o.customer_name && o.customer_name.toLowerCase().includes(query)) ||
+                (o.customer_phone && o.customer_phone.toLowerCase().includes(query))
+            );
+        }
         renderOrders(filtered);
-    }
+    };
 
     // ACCORDION TOGGLE (SILKY-SMOOTH HARDWARE-ACCELERATED IN-PLACE EXPAND + AUTO-CENTER SCROLL)
     window.toggleOrderAccordion = function(orderId) {
