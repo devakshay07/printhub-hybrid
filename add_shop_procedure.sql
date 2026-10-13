@@ -4,6 +4,8 @@
 -- Allows single-call tenant creation from the SQL Editor or Superadmin Console.
 -- ==============================================================================
 
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 CREATE OR REPLACE FUNCTION public.printhub_add_shop(
     p_owner_email TEXT,
     p_owner_password TEXT,
