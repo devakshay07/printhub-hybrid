@@ -337,7 +337,10 @@ async function initializeTenant() {
         let hostname = window.location.hostname;
         let subdomain = 'demo';
         
-        if (hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname.includes('.')) {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('shop')) {
+            subdomain = urlParams.get('shop').toLowerCase().trim();
+        } else if (hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname.includes('.')) {
             subdomain = hostname.split('.')[0]; 
             if (hostname.includes('vercel.app')) subdomain = 'demo';
         }
