@@ -1097,6 +1097,17 @@ async function submitOrder(razorpayPaymentId = null) {
     if (document.getElementById('upsell_spiral')?.checked) addons.push("[SPIRAL BIND]");
     if (document.getElementById('upsell_folder')?.checked) addons.push("[CLEAR FOLDER]");
     
+    // Duplex / Double-Sided Tracking
+    const hasDouble = filesData.some(f => f.config.sides === 'double');
+    if (hasDouble) {
+        addons.push("[DOUBLE_SIDED]");
+        filesData.forEach(f => {
+            if (f.config.sides === 'double') {
+                addons.push(`[DUPLEX:${f.name}]`);
+            }
+        });
+    }
+    
     if (addons.length > 0) {
         notes = addons.join(" ") + (notes ? " - " + notes : "");
     }
@@ -1207,10 +1218,11 @@ async function submitOrder(razorpayPaymentId = null) {
                 pages: finalPages,
                 copies: parseInt(f.config.copies),
                 color_mode: f.config.colorMode,
+                sides: f.config.sides || 'single',
                 page_range: f.config.pageRange || 'All'
             };
 
-            const fileDbRes = await fetch(`${SUPABASE_URL}/rest/v1/printhub_files`, {
+            let fileDbRes = await fetch(`${SUPABASE_URL}/rest/v1/printhub_files`, {
                 method: 'POST',
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
@@ -1223,7 +1235,24 @@ async function submitOrder(razorpayPaymentId = null) {
 
             if (!fileDbRes.ok) {
                 const errText = await fileDbRes.text();
-                throw new Error(`Database Sync Failed: ${fileDbRes.status} ${errText}`);
+                // Graceful fallback if the SQL column 'sides' hasn't been migrated yet
+                if (errText.includes('sides') || errText.includes('PGRST204')) {
+                    delete filePayload.sides;
+                    fileDbRes = await fetch(`${SUPABASE_URL}/rest/v1/printhub_files`, {
+                        method: 'POST',
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify(filePayload)
+                    });
+                }
+                if (!fileDbRes.ok) {
+                    const finalErr = await fileDbRes.text();
+                    throw new Error(`Database Sync Failed: ${fileDbRes.status} ${finalErr}`);
+                }
             }
         }
 

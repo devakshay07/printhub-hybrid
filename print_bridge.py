@@ -441,19 +441,33 @@ def process_order(order):
         color_str = f"{Colors.BLUE}[COLOR]{Colors.RESET}" if is_color else f"{Colors.BOLD}[B&W]{Colors.RESET}"
         copies = f_rec.get('copies', 1)
         
+        # Parse Duplex / Sides configuration
+        sides_val = str(f_rec.get('sides') or '').lower().strip()
+        if not sides_val or sides_val == 'single':
+            notes_str = str(order.get('notes') or '')
+            fname_clean = str(f_rec.get('filename') or '')
+            if f"[DUPLEX:{fname_clean}]" in notes_str or "[DOUBLE_SIDED]" in notes_str:
+                sides_val = 'double'
+            else:
+                sides_val = 'single'
+                
+        is_duplex = (sides_val == 'double' or sides_val == 'duplex')
+        sides_str = f"{Colors.GREEN}[DOUBLE-SIDED (DUPLEX)]{Colors.RESET}" if is_duplex else f"{Colors.BOLD}[SINGLE-SIDED]{Colors.RESET}"
+        
         print("")
         print(f"{Colors.CYAN}========================================={Colors.RESET}")
         print(f"{Colors.YELLOW}🖨️  PROCESSING FILE ({print_mode.upper()}){Colors.RESET}")
         print(f"File: {Colors.BOLD}{fname}{Colors.RESET}")
-        print(f"Settings: {color_str} | {copies} Copies")
+        print(f"Settings: {color_str} | {sides_str} | {copies} Copies")
         print(f"{Colors.CYAN}========================================={Colors.RESET}")
         print("")
         
         try:
             abs_path = os.path.abspath(local_path)
             if print_mode == 'auto' and sumatra_exe:
-                # Silently auto-print via Sumatra PDF using Dynamic Split-Routing
+                # Silently auto-print via Sumatra PDF using Dynamic Split-Routing & Duplex Control
                 color_flag = "color" if is_color else "monochrome"
+                duplex_flag = "duplex" if is_duplex else "simplex"
                 target_printer = color_target if is_color else bw_target
                 
                 cmd_args = [sumatra_exe]
@@ -464,11 +478,11 @@ def process_order(order):
                     cmd_args.extend(["-print-to-default"])
                     logger.info(f"{Colors.GREEN}Routing to Default Windows Printer{Colors.RESET}")
                 
-                cmd_args.extend(["-print-settings", f"{copies}x,{color_flag}", abs_path])
+                cmd_args.extend(["-print-settings", f"{copies}x,{color_flag},{duplex_flag}", abs_path])
                 
                 # Execute using a list to completely bypass cmd.exe quote-stripping corruption
                 subprocess.run(cmd_args, shell=False)
-                logger.info(f"{Colors.GREEN}Successfully spooled {fname}.{Colors.RESET}")
+                logger.info(f"{Colors.GREEN}Successfully spooled {fname} ({color_flag}, {duplex_flag}).{Colors.RESET}")
             else:
                 # Manual Preview in Edge
                 if platform.system() == "Windows":
@@ -478,7 +492,16 @@ def process_order(order):
                     except Exception as ex1:
                         subprocess.run(['explorer.exe', abs_path])
                 else:
-                    subprocess.run(['open', abs_path])
+                    try:
+                        lp_args = ['lp']
+                        if is_duplex:
+                            lp_args.extend(['-o', 'sides=two-sided-long-edge'])
+                        else:
+                            lp_args.extend(['-o', 'sides=one-sided'])
+                        lp_args.extend(['-n', str(copies), abs_path])
+                        subprocess.run(lp_args)
+                    except Exception:
+                        subprocess.run(['open', abs_path])
         except Exception as e:
             logger.error(f"Failed to process {fname}: {e}")
             

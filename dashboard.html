@@ -1468,6 +1468,8 @@
                 .replace(/\[URGENT\]/g, '<span class="inline-flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="zap" class="w-3 h-3 text-rose-500"></i> Urgent</span>')
                 .replace(/\[SPIRAL BIND\]/g, '<span class="inline-flex items-center gap-1 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="book-open" class="w-3 h-3 text-purple-500"></i> Spiral Bind</span>')
                 .replace(/\[CLEAR FOLDER\]/g, '<span class="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="folder" class="w-3 h-3 text-blue-500"></i> Clear Folder</span>')
+                .replace(/\[DOUBLE_SIDED\]/g, '<span class="inline-flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-lg text-xs font-bold"><i data-lucide="layers" class="w-3 h-3 text-indigo-500"></i> Double-Sided</span>')
+                .replace(/\[DUPLEX:[^\]]+\]/g, '')
                 .trim();
 
             const cleanPhone = (order.customer_phone || '').replace(/[^0-9]/g, '');
@@ -1596,6 +1598,12 @@
                                                 <span class="inline-flex items-center gap-1 ${f.color_mode === 'color' ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800' : 'bg-slate-100/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700'} font-bold px-2 py-0.5 rounded-md">
                                                     ${f.copies}x ${f.color_mode === 'color' ? 'Color' : 'B&W'}
                                                 </span>
+                                                ${(() => {
+                                                    const isDouble = (f.sides === 'double' || rawNotes.includes('[DOUBLE_SIDED]') || rawNotes.includes(`[DUPLEX:${f.filename}]`));
+                                                    return `<span class="inline-flex items-center gap-1 ${isDouble ? 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' : 'bg-slate-100/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700'} font-bold px-2 py-0.5 rounded-md">
+                                                        <i data-lucide="layers" class="w-3 h-3 ${isDouble ? 'text-indigo-500' : 'text-slate-400'}"></i> ${isDouble ? 'Double' : 'Single'}
+                                                    </span>`;
+                                                })()}
                                                 ${(f.page_range && f.page_range !== 'All') ? `<span class="bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded-md text-[9px] font-bold">p.${f.page_range}</span>` : ''}
                                             </div>
                                             <div class="flex justify-between items-center text-[10px] pt-1 border-t border-slate-100 dark:border-slate-800 mt-1">

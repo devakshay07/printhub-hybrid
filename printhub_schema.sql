@@ -56,8 +56,13 @@ CREATE TABLE IF NOT EXISTS public.printhub_files (
     pages INTEGER NOT NULL,
     copies INTEGER DEFAULT 1,
     color_mode TEXT DEFAULT 'bw',
+    sides TEXT DEFAULT 'single',
     page_range TEXT
 );
+
+-- Ensure sides column exists on preexisting installations
+ALTER TABLE public.printhub_files ADD COLUMN IF NOT EXISTS sides TEXT DEFAULT 'single';
+
 
 -- ==============================================================================
 -- 2. Storage Bucket
