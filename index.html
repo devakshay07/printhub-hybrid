@@ -88,15 +88,17 @@
         </div>
 
         <!-- UPLOAD ZONE -->
-        <div id="dropzone" class="fade-in bg-white border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 rounded-3xl p-10 text-center cursor-pointer group shadow-sm flex flex-col items-center justify-center gap-4" onclick="document.getElementById('file-input').click()">
-            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 dropzone-pulse">
+        <div id="dropzone" class="fade-in relative bg-white border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50/50 transition-all duration-200 rounded-3xl p-8 sm:p-10 text-center cursor-pointer group shadow-sm flex flex-col items-center justify-center gap-4 overflow-hidden">
+            <!-- NATIVE FULL-SURFACE INVISIBLE FILE INPUT: Direct touch & drag target for all devices -->
+            <input type="file" id="file-input" multiple accept=".pdf,application/pdf,.png,image/png,.jpg,.jpeg,image/jpeg" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30">
+
+            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 dropzone-pulse pointer-events-none">
                 <i data-lucide="upload-cloud" class="w-8 h-8"></i>
             </div>
-            <div>
+            <div class="pointer-events-none select-none">
                 <h3 class="text-xl font-bold text-slate-800">Tap to upload documents</h3>
                 <p class="text-slate-500 mt-2 text-sm">PDF, PNG, and JPG up to 50MB</p>
             </div>
-            <input type="file" id="file-input" multiple accept=".pdf,.png,.jpg,.jpeg" class="hidden">
         </div>
 
         <!-- FILE LIST -->
@@ -494,23 +496,28 @@ function closeError() {
 function setupDragAndDrop() {
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('file-input');
+    if (!dropzone || !fileInput) return;
 
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropzone.addEventListener(eventName, preventDefaults, false);
+        fileInput.addEventListener(eventName, preventDefaults, false);
     });
 
     ['dragenter', 'dragover'].forEach(eventName => {
         dropzone.addEventListener(eventName, () => dropzone.classList.add('border-blue-500', 'bg-blue-50'), false);
+        fileInput.addEventListener(eventName, () => dropzone.classList.add('border-blue-500', 'bg-blue-50'), false);
     });
 
     ['dragleave', 'drop'].forEach(eventName => {
         dropzone.addEventListener(eventName, () => dropzone.classList.remove('border-blue-500', 'bg-blue-50'), false);
+        fileInput.addEventListener(eventName, () => dropzone.classList.remove('border-blue-500', 'bg-blue-50'), false);
     });
 
     dropzone.addEventListener('drop', (e) => {
         const dt = e.dataTransfer;
-        const files = dt.files;
-        handleFiles({ target: { files: files } });
+        if (dt && dt.files && dt.files.length > 0) {
+            handleFiles({ target: { files: dt.files } });
+        }
     }, false);
 
     fileInput.addEventListener('change', handleFiles);
@@ -520,48 +527,66 @@ function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
 async function handleFiles(e) {
     if(!SHOP_ONLINE) return alert("This shop is currently not accepting online orders. Please try again later.");
     
-    const files = e.target.files;
-    document.getElementById('top-loader').classList.remove('hidden');
+    const files = e.target?.files || e.dataTransfer?.files || [];
+    if (!files || files.length === 0) return;
 
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (file.size > 50 * 1024 * 1024) {
-            alert(`File ${file.name} is too large (> 50MB)`);
-            continue;
-        }
+    const topLoader = document.getElementById('top-loader');
+    if (topLoader) topLoader.classList.remove('hidden');
 
-        let totalPages = 1;
-        if (file.type === 'application/pdf') {
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
-                totalPages = pdfDoc.getPageCount();
-            } catch (err) {
-                console.error("PDF Parsing error:", err);
-                alert(`Could not parse ${file.name}. It might be encrypted or corrupted.`);
+    try {
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (file.size > 50 * 1024 * 1024) {
+                alert(`File "${file.name}" is too large (> 50MB)`);
                 continue;
             }
-        }
 
-        filesData.push({
-            id: 'file_' + Math.random().toString(36).substr(2, 9),
-            name: file.name,
-            type: file.type,
-            originalFile: file,
-            totalPages: totalPages,
-            config: {
-                copies: 1,
-                colorMode: 'bw',
-                sides: 'single',
-                pageRange: ''
+            const nameLower = file.name.toLowerCase();
+            const isPdf = file.type === 'application/pdf' || nameLower.endsWith('.pdf');
+            const isImage = file.type.startsWith('image/') || nameLower.match(/\.(jpg|jpeg|png|webp|gif)$/);
+
+            let totalPages = 1;
+            let detectedType = file.type;
+
+            if (isPdf) {
+                detectedType = 'application/pdf';
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    if (window.PDFLib) {
+                        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+                        totalPages = Math.max(1, pdfDoc.getPageCount());
+                    }
+                } catch (err) {
+                    console.warn("Could not calculate PDF pages with PDFLib, defaulting to 1:", err);
+                    totalPages = 1;
+                }
+            } else if (isImage) {
+                detectedType = file.type || 'image/jpeg';
             }
-        });
-    }
 
-    document.getElementById('file-input').value = '';
-    renderFileList();
-    calculateTotal();
-    document.getElementById('top-loader').classList.add('hidden');
+            filesData.push({
+                id: 'file_' + Math.random().toString(36).substr(2, 9),
+                name: file.name,
+                type: detectedType || 'application/octet-stream',
+                originalFile: file,
+                totalPages: totalPages,
+                config: {
+                    copies: 1,
+                    colorMode: 'bw',
+                    sides: 'single',
+                    pageRange: ''
+                }
+            });
+        }
+    } catch(err) {
+        console.error("File processing error:", err);
+    } finally {
+        const fileInput = document.getElementById('file-input');
+        if (fileInput) fileInput.value = '';
+        renderFileList();
+        calculateTotal();
+        if (topLoader) topLoader.classList.add('hidden');
+    }
 }
 
 function renderFileList() {
