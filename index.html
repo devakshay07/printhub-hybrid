@@ -106,21 +106,56 @@
         </div>
 
         <!-- UPLOAD ZONE -->
-        <div id="dropzone" class="fade-in relative bg-white dark:bg-slate-900 border-2 border-dashed border-blue-300 dark:border-blue-900/60 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 transition-all duration-200 rounded-3xl p-8 sm:p-10 text-center cursor-pointer group shadow-xs flex flex-col items-center justify-center gap-4 overflow-hidden">
-            <!-- NATIVE FULL-SURFACE INVISIBLE FILE INPUT: Direct touch & drag target for all devices -->
-            <input type="file" id="file-input" multiple accept=".pdf,application/pdf,.png,image/png,.jpg,.jpeg,image/jpeg" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30">
+        <div id="dropzone" class="fade-in relative bg-white dark:bg-slate-900 border-2 border-dashed border-blue-300 dark:border-blue-900/60 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 transition-all duration-200 rounded-3xl p-6 sm:p-8 text-center shadow-xs flex flex-col items-center justify-center gap-4 overflow-hidden">
+            <!-- Hidden inputs for direct source routing -->
+            <input type="file" id="file-input-gallery" multiple accept="image/*" class="hidden">
+            <input type="file" id="file-input-docs" multiple accept=".pdf,application/pdf" class="hidden">
+            <input type="file" id="file-input-camera" accept="image/*" capture="environment" class="hidden">
+            <input type="file" id="file-input" multiple accept=".pdf,application/pdf,image/*" class="hidden">
 
-            <div class="w-16 h-16 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-200 dropzone-pulse pointer-events-none border border-blue-100 dark:border-blue-900">
-                <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+            <div class="w-14 h-14 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center dropzone-pulse border border-blue-100 dark:border-blue-900 pointer-events-none">
+                <i data-lucide="upload-cloud" class="w-7 h-7"></i>
             </div>
             <div class="pointer-events-none select-none">
-                <h3 class="text-xl font-bold text-slate-800 dark:text-white">Tap to upload documents</h3>
-                <p class="text-slate-500 dark:text-slate-400 mt-1.5 text-xs sm:text-sm">PDF, PNG, and JPG up to 50MB</p>
+                <h3 class="text-lg sm:text-xl font-bold text-slate-800 dark:text-white">Upload Documents & Photos</h3>
+                <p class="text-slate-500 dark:text-slate-400 mt-1 text-xs sm:text-sm">Choose directly from Gallery, PDF Documents, or Camera</p>
+            </div>
+
+            <!-- Upload Action Buttons -->
+            <div class="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3 w-full max-w-md pt-1 z-10">
+                <button type="button" onclick="event.stopPropagation(); document.getElementById('file-input-gallery').click();" class="flex-1 min-w-[130px] bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-3.5 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer">
+                    <i data-lucide="image" class="w-4 h-4"></i> Photo Gallery
+                </button>
+                <button type="button" onclick="event.stopPropagation(); document.getElementById('file-input-docs').click();" class="flex-1 min-w-[130px] bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 active:scale-95 text-slate-800 dark:text-slate-200 font-bold py-2.5 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs transition-all flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer">
+                    <i data-lucide="file-text" class="w-4 h-4 text-rose-500"></i> PDF & Docs
+                </button>
+                <button type="button" onclick="event.stopPropagation(); document.getElementById('file-input-camera').click();" class="sm:flex-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 active:scale-95 text-slate-800 dark:text-slate-200 font-bold py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs transition-all flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer" title="Take a photo with camera">
+                    <i data-lucide="camera" class="w-4 h-4 text-emerald-500"></i> Camera
+                </button>
+            </div>
+        </div>
+
+        <!-- FILE COMBINER BAR (Appears when 2+ files exist) -->
+        <div id="combiner-bar" class="hidden fade-in bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900/90 dark:to-slate-900/90 border border-blue-200/80 dark:border-slate-800 rounded-2xl p-3 sm:p-4 mt-8 mb-2 flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                    <i data-lucide="layers" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <span id="selected-files-count" class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">Combine Multiple Files</span>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400">Merge selected images/pages onto fewer sheets (e.g. 2 or 4 per page)</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <button type="button" onclick="selectAllFilesForCombine()" class="text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 px-2.5 py-1.5 rounded-lg transition-colors">Select All</button>
+                <button type="button" id="btn-merge-selected" onclick="mergeSelectedFiles()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <i data-lucide="merge" class="w-3.5 h-3.5"></i> Merge into 1 Document
+                </button>
             </div>
         </div>
 
         <!-- FILE LIST -->
-        <div id="file-list" class="mt-8 space-y-4"></div>
+        <div id="file-list" class="space-y-4"></div>
 
         <!-- USER DETAILS -->
         <div class="fade-in bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-100 dark:border-slate-800 mt-8">
@@ -271,6 +306,83 @@
             
             <button onclick="finishOrder()" class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition-all active:scale-98 text-sm">
                 I Have Saved The PIN
+            </button>
+        </div>
+    </div>
+
+    <!-- INTERACTIVE LIVE PRINT PREVIEW MODAL -->
+    <div id="preview-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[200] flex-col overflow-hidden">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-3 sm:p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+            <div class="flex items-center gap-2.5 sm:gap-3 overflow-hidden">
+                <div class="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900 shrink-0">
+                    <i data-lucide="eye" class="w-5 h-5"></i>
+                </div>
+                <div class="overflow-hidden">
+                    <h2 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        Live Print Preview
+                        <span id="preview-sheet-tag" class="text-[10px] bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold px-2 py-0.5 rounded-md">Sheet 1 of 1</span>
+                    </h2>
+                    <p id="preview-file-title" class="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[200px] sm:max-w-md">Document name</p>
+                </div>
+            </div>
+            <button onclick="closeLivePreview()" class="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors shrink-0">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- In-Modal Interactive Controls Ribbon -->
+        <div class="bg-slate-100/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 px-3 py-2 sm:px-6 flex flex-wrap items-center justify-between gap-2 sm:gap-3 shrink-0">
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- Layout Switcher -->
+                <div class="flex items-center gap-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 shadow-xs">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase px-1.5 hidden sm:inline">Layout</span>
+                    <button type="button" id="pv-btn-1up" onclick="setPreviewOption('layout', '1-up')" class="px-2 py-1 text-xs font-bold rounded-lg transition-all">1-Up</button>
+                    <button type="button" id="pv-btn-2up" onclick="setPreviewOption('layout', '2-up')" class="px-2 py-1 text-xs font-bold rounded-lg transition-all">2-Up</button>
+                    <button type="button" id="pv-btn-4up" onclick="setPreviewOption('layout', '4-up')" class="px-2 py-1 text-xs font-bold rounded-lg transition-all">4-Up</button>
+                </div>
+
+                <!-- Color Switcher -->
+                <div class="flex items-center gap-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 shadow-xs">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase px-1.5 hidden sm:inline">Color</span>
+                    <button type="button" id="pv-btn-bw" onclick="setPreviewOption('colorMode', 'bw')" class="px-2 py-1 text-xs font-bold rounded-lg transition-all">B&W</button>
+                    <button type="button" id="pv-btn-color" onclick="setPreviewOption('colorMode', 'color')" class="px-2 py-1 text-xs font-bold rounded-lg transition-all">Color</button>
+                </div>
+
+                <!-- Sides Switcher -->
+                <div class="flex items-center gap-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 shadow-xs">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase px-1.5 hidden sm:inline">Sides</span>
+                    <button type="button" id="pv-btn-single" onclick="setPreviewOption('sides', 'single')" class="px-2 py-1 text-xs font-bold rounded-lg transition-all">Single</button>
+                    <button type="button" id="pv-btn-double" onclick="setPreviewOption('sides', 'double')" class="px-2 py-1 text-xs font-bold rounded-lg transition-all">Double</button>
+                </div>
+            </div>
+
+            <!-- Page Pager -->
+            <div id="preview-pager" class="flex items-center gap-1.5">
+                <button type="button" onclick="stepPreviewSheet(-1)" class="w-7 h-7 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-all" id="pv-prev-btn">
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                </button>
+                <span id="preview-pager-text" class="text-xs font-bold text-slate-700 dark:text-slate-200 font-mono select-none px-1">1 / 1</span>
+                <button type="button" onclick="stepPreviewSheet(1)" class="w-7 h-7 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-all" id="pv-next-btn">
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Virtual Paper Canvas Stage -->
+        <div class="flex-1 overflow-auto p-4 sm:p-6 flex items-center justify-center bg-slate-900/60" id="preview-stage">
+            <div id="virtual-sheet" class="relative bg-white shadow-2xl rounded-sm transition-all duration-200 overflow-hidden flex flex-col justify-center items-center border border-slate-300">
+                <!-- Javascript injects slots here -->
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-4 flex items-center justify-between gap-3 shrink-0">
+            <div class="text-xs text-slate-600 dark:text-slate-400">
+                <span id="preview-summary-text" class="font-bold text-slate-900 dark:text-white">1 Sheet • B&W</span>
+            </div>
+            <button onclick="closeLivePreview()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2 px-5 rounded-xl shadow-md shadow-blue-500/25 transition-all text-xs sm:text-sm flex items-center gap-1.5">
+                <i data-lucide="check" class="w-4 h-4"></i> Looks Good
             </button>
         </div>
     </div>
@@ -587,22 +699,23 @@ function closeError() {
 
 function setupDragAndDrop() {
     const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('file-input');
-    if (!dropzone || !fileInput) return;
+    if (!dropzone) return;
+
+    ['file-input', 'file-input-gallery', 'file-input-docs', 'file-input-camera'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) input.addEventListener('change', handleFiles);
+    });
 
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropzone.addEventListener(eventName, preventDefaults, false);
-        fileInput.addEventListener(eventName, preventDefaults, false);
     });
 
     ['dragenter', 'dragover'].forEach(eventName => {
-        dropzone.addEventListener(eventName, () => dropzone.classList.add('border-blue-500', 'bg-blue-50'), false);
-        fileInput.addEventListener(eventName, () => dropzone.classList.add('border-blue-500', 'bg-blue-50'), false);
+        dropzone.addEventListener(eventName, () => dropzone.classList.add('border-blue-500', 'bg-blue-50/60'), false);
     });
 
     ['dragleave', 'drop'].forEach(eventName => {
-        dropzone.addEventListener(eventName, () => dropzone.classList.remove('border-blue-500', 'bg-blue-50'), false);
-        fileInput.addEventListener(eventName, () => dropzone.classList.remove('border-blue-500', 'bg-blue-50'), false);
+        dropzone.addEventListener(eventName, () => dropzone.classList.remove('border-blue-500', 'bg-blue-50/60'), false);
     });
 
     dropzone.addEventListener('drop', (e) => {
@@ -612,7 +725,11 @@ function setupDragAndDrop() {
         }
     }, false);
 
-    fileInput.addEventListener('change', handleFiles);
+    dropzone.addEventListener('click', (e) => {
+        if (e.target.closest('button') || e.target.closest('input')) return;
+        const generalInput = document.getElementById('file-input');
+        if (generalInput) generalInput.click();
+    });
 }
 function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
 
@@ -662,10 +779,14 @@ async function handleFiles(e) {
                 type: detectedType || 'application/octet-stream',
                 originalFile: file,
                 totalPages: totalPages,
+                selectedForCombine: false,
+                isBundle: false,
+                subFiles: null,
                 config: {
                     copies: 1,
                     colorMode: 'bw',
                     sides: 'single',
+                    layout: '1-up',
                     pageRange: ''
                 }
             });
@@ -673,12 +794,105 @@ async function handleFiles(e) {
     } catch(err) {
         console.error("File processing error:", err);
     } finally {
-        const fileInput = document.getElementById('file-input');
-        if (fileInput) fileInput.value = '';
+        ['file-input', 'file-input-gallery', 'file-input-docs', 'file-input-camera'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        updateCombinerBar();
         renderFileList();
         calculateTotal();
         if (topLoader) topLoader.classList.add('hidden');
     }
+}
+
+function toggleSelectFile(fileId) {
+    const f = filesData.find(x => x.id === fileId);
+    if (f) {
+        f.selectedForCombine = !f.selectedForCombine;
+        updateCombinerBar();
+        renderFileList();
+    }
+}
+
+function selectAllFilesForCombine() {
+    const allSelected = filesData.every(f => f.selectedForCombine);
+    filesData.forEach(f => f.selectedForCombine = !allSelected);
+    updateCombinerBar();
+    renderFileList();
+}
+
+function updateCombinerBar() {
+    const bar = document.getElementById('combiner-bar');
+    if (!bar) return;
+    if (filesData.length >= 2) {
+        bar.classList.remove('hidden');
+        bar.classList.add('flex');
+        const selectedCount = filesData.filter(f => f.selectedForCombine).length;
+        const countEl = document.getElementById('selected-files-count');
+        const mergeBtn = document.getElementById('btn-merge-selected');
+        if (selectedCount > 0) {
+            countEl.textContent = `${selectedCount} of ${filesData.length} files selected to combine`;
+            mergeBtn.disabled = selectedCount < 2;
+        } else {
+            countEl.textContent = 'Select files to combine into 1 document';
+            mergeBtn.disabled = true;
+        }
+    } else {
+        bar.classList.add('hidden');
+        bar.classList.remove('flex');
+    }
+}
+
+function mergeSelectedFiles() {
+    const selected = filesData.filter(f => f.selectedForCombine);
+    if (selected.length < 2) return alert('Please select at least 2 files to combine.');
+    
+    // Remove selected files from queue
+    filesData = filesData.filter(f => !f.selectedForCombine);
+    
+    // Count total pages across selected files
+    const totalPages = selected.reduce((sum, f) => sum + (f.totalPages || 1), 0);
+    const bundleId = 'bundle_' + Math.random().toString(36).substr(2, 9);
+    
+    const bundle = {
+        id: bundleId,
+        name: `Combined Bundle (${selected.length} Files)`,
+        type: 'application/pdf',
+        isBundle: true,
+        subFiles: selected,
+        totalPages: totalPages,
+        selectedForCombine: false,
+        config: {
+            copies: 1,
+            colorMode: selected[0]?.config?.colorMode || 'bw',
+            sides: 'single',
+            layout: '2-up', // Default to 2-Up when combining!
+            pageRange: ''
+        }
+    };
+    
+    filesData.unshift(bundle);
+    updateCombinerBar();
+    renderFileList();
+    calculateTotal();
+    
+    // Automatically open live preview so customer immediately sees their 2-Up layout
+    openLivePreview(bundle.id);
+}
+
+function uncombineBundle(bundleId) {
+    const idx = filesData.findIndex(f => f.id === bundleId);
+    if (idx === -1) return;
+    const bundle = filesData[idx];
+    if (!bundle.isBundle || !bundle.subFiles) return;
+    
+    // Reset selection flags on restored files
+    bundle.subFiles.forEach(f => f.selectedForCombine = false);
+    
+    filesData.splice(idx, 1, ...bundle.subFiles);
+    updateCombinerBar();
+    renderFileList();
+    calculateTotal();
 }
 
 function renderFileList() {
@@ -687,7 +901,9 @@ function renderFileList() {
     
     filesData.forEach((f, index) => {
         let previewHtml = `<div class="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 shadow-xs"><i data-lucide="file-text" class="w-6 h-6 text-slate-400"></i></div>`;
-        if (f.type.startsWith('image/')) {
+        if (f.isBundle) {
+            previewHtml = `<div class="w-12 h-12 bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center shrink-0 border border-purple-200 dark:border-purple-800 shadow-xs"><i data-lucide="layers" class="w-6 h-6"></i></div>`;
+        } else if (f.type.startsWith('image/')) {
             previewHtml = `<img src="${URL.createObjectURL(f.originalFile)}" class="w-12 h-12 object-cover rounded-xl shrink-0 border border-slate-200 dark:border-slate-700 shadow-xs">`;
         } else if (f.type === 'application/pdf') {
             previewHtml = `<div class="w-12 h-12 bg-red-50 dark:bg-red-950/50 rounded-xl flex items-center justify-center shrink-0 border border-red-100 dark:border-red-900 shadow-xs"><i data-lucide="file-text" class="w-6 h-6 text-red-500"></i></div>`;
@@ -695,29 +911,56 @@ function renderFileList() {
 
         const isBw = (f.config.colorMode === 'bw');
         const isSingle = (f.config.sides === 'single');
+        const layout = f.config.layout || '1-up';
         const safeName = escapeHtml(f.name);
-        const pagesText = f.type === 'application/pdf' ? `${f.totalPages} ${f.totalPages === 1 ? 'Page' : 'Pages'}` : '1 Page Image';
+        
+        let calculatedSheets = f.totalPages;
+        if (layout === '2-up') calculatedSheets = Math.ceil(f.totalPages / 2);
+        else if (layout === '4-up') calculatedSheets = Math.ceil(f.totalPages / 4);
+        
+        const sheetsBadgeText = `${calculatedSheets} ${calculatedSheets === 1 ? 'Sheet' : 'Sheets'} (${f.totalPages} ${f.totalPages === 1 ? 'page' : 'pages'})`;
 
         let html = `
-        <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col gap-4 fade-in">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border ${f.selectedForCombine ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-200 dark:border-slate-800'} shadow-xs flex flex-col gap-4 fade-in">
             <div class="flex items-start justify-between gap-3">
                 <div class="flex items-center gap-3 sm:gap-4 overflow-hidden">
-                    ${previewHtml}
+                    ${filesData.length >= 2 ? `
+                    <input type="checkbox" ${f.selectedForCombine ? 'checked' : ''} onchange="toggleSelectFile('${f.id}')" class="w-5 h-5 text-blue-600 rounded-md cursor-pointer shrink-0" title="Select to combine">
+                    ` : ''}
+                    <div class="cursor-pointer group relative" onclick="openLivePreview('${f.id}')" title="Click to view live print preview">
+                        ${previewHtml}
+                        <div class="absolute inset-0 bg-blue-600/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <i data-lucide="eye" class="w-4 h-4 text-blue-600"></i>
+                        </div>
+                    </div>
                     <div class="overflow-hidden">
-                        <h4 class="font-bold text-slate-900 dark:text-white truncate text-sm sm:text-base">${safeName}</h4>
-                        <p class="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5">
-                            <span class="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-300">
-                                <i data-lucide="layers" class="w-3 h-3"></i> ${pagesText}
+                        <div class="flex items-center gap-2">
+                            <h4 class="font-bold text-slate-900 dark:text-white truncate text-sm sm:text-base">${safeName}</h4>
+                            ${f.isBundle ? `<span class="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0">Bundle (${f.subFiles.length})</span>` : ''}
+                        </div>
+                        <p class="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                            <span class="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-700 dark:text-slate-300">
+                                <i data-lucide="file-check" class="w-3 h-3 text-blue-500"></i> ${sheetsBadgeText}
                             </span>
+                            ${f.isBundle ? `
+                            <button type="button" onclick="uncombineBundle('${f.id}')" class="text-xs text-purple-600 dark:text-purple-400 hover:underline font-bold inline-flex items-center gap-1">
+                                <i data-lucide="split" class="w-3 h-3"></i> Uncombine
+                            </button>
+                            ` : ''}
                         </p>
                     </div>
                 </div>
-                <button type="button" onclick="removeFile('${f.id}')" class="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 p-2 rounded-xl shrink-0 transition-colors" title="Remove Document">
-                    <i data-lucide="trash-2" class="w-5 h-5"></i>
-                </button>
+                <div class="flex items-center gap-1 shrink-0">
+                    <button type="button" onclick="openLivePreview('${f.id}')" class="text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 p-2 rounded-xl transition-colors inline-flex items-center gap-1 text-xs font-bold" title="Open Live Print Preview">
+                        <i data-lucide="eye" class="w-4 h-4"></i> <span class="hidden sm:inline">Preview</span>
+                    </button>
+                    <button type="button" onclick="removeFile('${f.id}')" class="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 p-2 rounded-xl transition-colors" title="Remove Document">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/70 dark:bg-slate-950/60 rounded-2xl p-3 border border-slate-100 dark:border-slate-800/80">
+            <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3 bg-slate-50/70 dark:bg-slate-950/60 rounded-2xl p-3 border border-slate-100 dark:border-slate-800/80">
                 <!-- COPIES STEPPER -->
                 <div class="flex flex-col gap-1.5">
                     <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Copies</label>
@@ -754,22 +997,41 @@ function renderFileList() {
                     </div>
                 </div>
 
-                <!-- PAGES RANGE / VISUAL SLICER -->
-                ${f.type === 'application/pdf' ? `
+                <!-- LAYOUT / GRID SEGMENTED PILL -->
                 <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                        <span>Grid Layout</span>
+                        <span class="text-blue-600 dark:text-blue-400 font-bold lowercase">${layout}</span>
+                    </label>
+                    <div class="grid grid-cols-3 h-10 bg-slate-200/70 dark:bg-slate-800 rounded-xl p-1 gap-1">
+                        <button type="button" onclick="updateConfig('${f.id}', 'layout', '1-up')" class="rounded-lg text-[11px] font-bold transition-all flex items-center justify-center select-none ${layout === '1-up' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}">
+                            1-Up
+                        </button>
+                        <button type="button" onclick="updateConfig('${f.id}', 'layout', '2-up')" class="rounded-lg text-[11px] font-bold transition-all flex items-center justify-center select-none ${layout === '2-up' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}">
+                            2-Up
+                        </button>
+                        <button type="button" onclick="updateConfig('${f.id}', 'layout', '4-up')" class="rounded-lg text-[11px] font-bold transition-all flex items-center justify-center select-none ${layout === '4-up' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}">
+                            4-Up
+                        </button>
+                    </div>
+                </div>
+
+                <!-- PAGES RANGE / VISUAL SLICER -->
+                ${(f.type === 'application/pdf' && !f.isBundle) ? `
+                <div class="flex flex-col gap-1.5 col-span-2 sm:col-span-2 md:col-span-1">
                     <div class="flex items-center justify-between">
                         <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pages</label>
                         <button type="button" onclick="openVisualSlicer('${f.id}')" class="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 text-[10px] font-bold">
-                            <i data-lucide="eye" class="w-3 h-3"></i> Visual Slicer
+                            <i data-lucide="scissors" class="w-3 h-3"></i> Slicer
                         </button>
                     </div>
                     <input type="text" placeholder="e.g. 1-3 or All" value="${f.config.pageRange || ''}" onchange="updateConfig('${f.id}', 'pageRange', this.value)" class="h-10 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 text-xs font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-slate-900 dark:text-white transition-all font-mono">
                 </div>
                 ` : `
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pages</label>
-                    <div class="h-10 flex items-center px-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 shadow-xs">
-                        All (1 Page)
+                <div class="flex flex-col gap-1.5 col-span-2 sm:col-span-2 md:col-span-1">
+                    <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Print Range</label>
+                    <div class="h-10 flex items-center px-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 shadow-xs">
+                        All Items Included
                     </div>
                 </div>
                 `}
@@ -790,8 +1052,18 @@ function updateConfig(id, key, value) {
     }
 }
 
+function adjustCopies(id, delta) {
+    const f = filesData.find(x => x.id === id);
+    if(f) {
+        f.config.copies = Math.max(1, (parseInt(f.config.copies) || 1) + delta);
+        renderFileList();
+        calculateTotal();
+    }
+}
+
 function removeFile(id) {
     filesData = filesData.filter(x => x.id !== id);
+    updateCombinerBar();
     renderFileList();
     calculateTotal();
 }
@@ -821,10 +1093,16 @@ function calculateTotal() {
     filesData.forEach(f => {
         let pagesToPrint = f.totalPages;
         if (f.type === 'application/pdf' && f.config.pageRange) {
-            pagesToPrint = parsePageRange(f.config.pageRange, f.totalPages).length;
+            const parsed = parsePageRange(f.config.pageRange, f.totalPages);
+            if (parsed.length > 0) pagesToPrint = parsed.length;
         }
+        
+        let sheets = pagesToPrint;
+        if (f.config.layout === '2-up') sheets = Math.ceil(pagesToPrint / 2);
+        else if (f.config.layout === '4-up') sheets = Math.ceil(pagesToPrint / 4);
+        
         const rate = f.config.colorMode === 'color' ? RATES.color : RATES.bw;
-        total += (pagesToPrint * f.config.copies * rate);
+        total += (sheets * f.config.copies * rate);
     });
     
     // Add Upsells
@@ -834,15 +1112,408 @@ function calculateTotal() {
         }
     });
 
-    
     // Animate the price change
     const priceEl = document.getElementById('total-price');
-    priceEl.classList.add('scale-110', 'text-indigo-600');
-    priceEl.textContent = '₹' + total.toFixed(2);
-    setTimeout(() => priceEl.classList.remove('scale-110', 'text-indigo-600'), 200);
+    if (priceEl) {
+        priceEl.classList.add('scale-110', 'text-indigo-600');
+        priceEl.textContent = '₹' + total.toFixed(2);
+        setTimeout(() => priceEl.classList.remove('scale-110', 'text-indigo-600'), 200);
+    }
     
     return total;
 }
+
+// ---------------------------------------------------------
+// LIVE PRINT PREVIEW ENGINE
+// ---------------------------------------------------------
+let previewState = {
+    fileId: null,
+    currentSheet: 0
+};
+
+function openLivePreview(fileId) {
+    const f = filesData.find(x => x.id === fileId);
+    if (!f) return;
+    
+    previewState.fileId = fileId;
+    previewState.currentSheet = 0;
+    
+    const modal = document.getElementById('preview-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    renderPreviewSheet();
+    if (window.lucide) { try { lucide.createIcons(); } catch(e){} }
+}
+
+function closeLivePreview() {
+    const modal = document.getElementById('preview-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function setPreviewOption(key, value) {
+    if (!previewState.fileId) return;
+    const f = filesData.find(x => x.id === previewState.fileId);
+    if (!f) return;
+    
+    f.config[key] = value;
+    previewState.currentSheet = 0;
+    renderPreviewSheet();
+    renderFileList();
+    calculateTotal();
+}
+
+function stepPreviewSheet(delta) {
+    if (!previewState.fileId) return;
+    const f = filesData.find(x => x.id === previewState.fileId);
+    if (!f) return;
+    
+    const layout = f.config.layout || '1-up';
+    const itemsPerSheet = layout === '4-up' ? 4 : (layout === '2-up' ? 2 : 1);
+    const totalItems = f.isBundle ? f.subFiles.length : f.totalPages;
+    const totalSheets = Math.ceil(totalItems / itemsPerSheet) || 1;
+    
+    const next = previewState.currentSheet + delta;
+    if (next >= 0 && next < totalSheets) {
+        previewState.currentSheet = next;
+        renderPreviewSheet();
+    }
+}
+
+async function renderPreviewSheet() {
+    if (!previewState.fileId) return;
+    const f = filesData.find(x => x.id === previewState.fileId);
+    if (!f) return;
+
+    const layout = f.config.layout || '1-up';
+    const colorMode = f.config.colorMode || 'bw';
+    const sides = f.config.sides || 'single';
+    
+    // Update toolbar button states
+    ['1up', '2up', '4up'].forEach(k => {
+        const btn = document.getElementById(`pv-btn-${k}`);
+        if (btn) {
+            const active = (layout === k.replace('up', '-up'));
+            btn.className = `px-2 py-1 text-xs font-bold rounded-lg transition-all ${active ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`;
+        }
+    });
+
+    ['bw', 'color'].forEach(k => {
+        const btn = document.getElementById(`pv-btn-${k}`);
+        if (btn) {
+            const active = (colorMode === k);
+            btn.className = `px-2 py-1 text-xs font-bold rounded-lg transition-all ${active ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`;
+        }
+    });
+
+    ['single', 'double'].forEach(k => {
+        const btn = document.getElementById(`pv-btn-${k}`);
+        if (btn) {
+            const active = (sides === k);
+            btn.className = `px-2 py-1 text-xs font-bold rounded-lg transition-all ${active ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`;
+        }
+    });
+
+    const itemsPerSheet = layout === '4-up' ? 4 : (layout === '2-up' ? 2 : 1);
+    const totalItems = f.isBundle ? f.subFiles.length : f.totalPages;
+    const totalSheets = Math.ceil(totalItems / itemsPerSheet) || 1;
+    
+    if (previewState.currentSheet >= totalSheets) previewState.currentSheet = Math.max(0, totalSheets - 1);
+    
+    document.getElementById('preview-file-title').textContent = f.name;
+    document.getElementById('preview-sheet-tag').textContent = `Sheet ${previewState.currentSheet + 1} of ${totalSheets}`;
+    document.getElementById('preview-pager-text').textContent = `${previewState.currentSheet + 1} / ${totalSheets}`;
+    
+    const prevBtn = document.getElementById('pv-prev-btn');
+    const nextBtn = document.getElementById('pv-next-btn');
+    if (prevBtn) prevBtn.disabled = (previewState.currentSheet === 0);
+    if (nextBtn) nextBtn.disabled = (previewState.currentSheet >= totalSheets - 1);
+    
+    document.getElementById('preview-summary-text').textContent = `${totalSheets} ${totalSheets === 1 ? 'Sheet' : 'Sheets'} • ${colorMode === 'color' ? 'Full Color' : 'Monochrome B&W'} • ${layout.toUpperCase()} • ${sides === 'double' ? 'Double-Sided' : 'Single-Sided'}`;
+
+    const sheet = document.getElementById('virtual-sheet');
+    sheet.innerHTML = '';
+    sheet.style.filter = (colorMode === 'bw') ? 'grayscale(100%) contrast(1.1)' : 'none';
+
+    if (layout === '2-up') {
+        // Landscape A4 Sheet
+        sheet.className = "relative bg-white shadow-2xl rounded-sm transition-all duration-200 overflow-hidden flex flex-row items-center border border-slate-300 w-full max-w-[620px] aspect-[1.414/1]";
+        
+        const slot0 = document.createElement('div');
+        slot0.className = "w-1/2 h-full p-2.5 sm:p-3 flex items-center justify-center border-r border-dashed border-slate-300 relative overflow-hidden";
+        
+        const slot1 = document.createElement('div');
+        slot1.className = "w-1/2 h-full p-2.5 sm:p-3 flex items-center justify-center relative overflow-hidden";
+        
+        sheet.appendChild(slot0);
+        sheet.appendChild(slot1);
+
+        const idx0 = previewState.currentSheet * 2;
+        const idx1 = previewState.currentSheet * 2 + 1;
+        
+        renderItemIntoSlot(slot0, f, idx0);
+        if (idx1 < totalItems) {
+            renderItemIntoSlot(slot1, f, idx1);
+        } else {
+            slot1.innerHTML = '<span class="text-slate-300 text-xs italic font-medium select-none">Blank / Empty</span>';
+        }
+    } else if (layout === '4-up') {
+        // Portrait A4 Sheet with 2x2 grid
+        sheet.className = "relative bg-white shadow-2xl rounded-sm transition-all duration-200 overflow-hidden grid grid-cols-2 grid-rows-2 border border-slate-300 h-full max-h-[580px] aspect-[1/1.414] p-1.5 gap-1.5";
+        
+        for (let s = 0; s < 4; s++) {
+            const itemIdx = previewState.currentSheet * 4 + s;
+            const slot = document.createElement('div');
+            slot.className = "relative flex items-center justify-center p-1 border border-dashed border-slate-200 rounded overflow-hidden";
+            sheet.appendChild(slot);
+            
+            if (itemIdx < totalItems) {
+                renderItemIntoSlot(slot, f, itemIdx);
+            } else {
+                slot.innerHTML = '<span class="text-slate-300 text-[10px] italic font-medium select-none">Empty</span>';
+            }
+        }
+    } else {
+        // 1-Up Portrait A4 Sheet
+        sheet.className = "relative bg-white shadow-2xl rounded-sm transition-all duration-200 overflow-hidden flex flex-col justify-center items-center border border-slate-300 h-full max-h-[580px] aspect-[1/1.414] p-3 sm:p-4";
+        const slot = document.createElement('div');
+        slot.className = "w-full h-full flex items-center justify-center relative overflow-hidden";
+        sheet.appendChild(slot);
+        renderItemIntoSlot(slot, f, previewState.currentSheet);
+    }
+}
+
+async function renderItemIntoSlot(slotEl, fileRecord, itemIndex) {
+    if (fileRecord.isBundle) {
+        const sub = fileRecord.subFiles[itemIndex];
+        if (!sub) {
+            slotEl.innerHTML = '<span class="text-slate-300 text-xs italic font-medium select-none">Empty</span>';
+            return;
+        }
+        if (sub.type.startsWith('image/')) {
+            slotEl.innerHTML = `<img src="${URL.createObjectURL(sub.originalFile)}" class="max-w-full max-h-full object-contain rounded shadow-xs select-none pointer-events-none">`;
+            const badge = document.createElement('div');
+            badge.className = "absolute bottom-1 right-1 bg-slate-900/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none";
+            badge.textContent = `${itemIndex + 1}`;
+            slotEl.appendChild(badge);
+        } else if (sub.type === 'application/pdf') {
+            await renderPdfPageCanvas(slotEl, sub.originalFile, 1);
+        }
+    } else if (fileRecord.type === 'application/pdf') {
+        let pageNum = itemIndex + 1;
+        if (fileRecord.config.pageRange && fileRecord.config.pageRange.toLowerCase() !== 'all') {
+            const parsed = parsePageRange(fileRecord.config.pageRange, fileRecord.totalPages);
+            if (itemIndex < parsed.length) pageNum = parsed[itemIndex] + 1;
+        }
+        await renderPdfPageCanvas(slotEl, fileRecord.originalFile, pageNum);
+    } else if (fileRecord.type.startsWith('image/')) {
+        slotEl.innerHTML = `<img src="${URL.createObjectURL(fileRecord.originalFile)}" class="max-w-full max-h-full object-contain rounded shadow-xs select-none pointer-events-none">`;
+    }
+}
+
+async function renderPdfPageCanvas(containerEl, fileObj, pageNumber) {
+    containerEl.innerHTML = '<div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>';
+    try {
+        const arrayBuffer = await fileObj.arrayBuffer();
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js?v=2';
+        const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        
+        if (pageNumber > pdfDoc.numPages) {
+            containerEl.innerHTML = '<span class="text-slate-300 text-xs italic font-medium">Empty</span>';
+            return;
+        }
+        
+        const page = await pdfDoc.getPage(pageNumber);
+        const canvas = document.createElement('canvas');
+        canvas.className = "max-w-full max-h-full object-contain shadow-xs rounded-sm select-none pointer-events-none";
+        const viewport = page.getViewport({ scale: 0.8 });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+        
+        containerEl.innerHTML = '';
+        containerEl.appendChild(canvas);
+        
+        const badge = document.createElement('div');
+        badge.className = "absolute bottom-1 right-1 bg-slate-900/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none";
+        badge.textContent = `p. ${pageNumber}`;
+        containerEl.appendChild(badge);
+    } catch (e) {
+        containerEl.innerHTML = '<span class="text-slate-400 text-xs">Preview unavailable</span>';
+    }
+}
+
+// ---------------------------------------------------------
+// CLIENT-SIDE PDF SYNTHESIS & IMPOSITION ENGINE
+// ---------------------------------------------------------
+async function generatePrintReadyPdf(f) {
+    const A4_PORTRAIT = [595.28, 841.89];
+    const A4_LANDSCAPE = [841.89, 595.28];
+    const layout = f.config.layout || '1-up';
+
+    async function fileToJpgBytes(file) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob(blob => {
+                    if (!blob) return reject(new Error('Canvas toBlob failed'));
+                    blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf))).catch(reject);
+                }, 'image/jpeg', 0.95);
+            };
+            img.onerror = () => reject(new Error('Failed to load image for PDF synthesis'));
+            img.src = URL.createObjectURL(file);
+        });
+    }
+
+    function drawItemInSlot(sheet, item, slotX, slotY, slotW, slotH) {
+        const scale = Math.min(slotW / item.width, slotH / item.height);
+        const w = item.width * scale;
+        const h = item.height * scale;
+        const x = slotX + (slotW - w) / 2;
+        const y = slotY + (slotH - h) / 2;
+        if (item.type === 'page') {
+            sheet.drawPage(item.obj, { x, y, width: w, height: h });
+        } else {
+            sheet.drawImage(item.obj, { x, y, width: w, height: h });
+        }
+    }
+
+    // CASE 1: Standard 1-Up un-sliced PDF -> return original file directly!
+    if (!f.isBundle && f.type === 'application/pdf' && layout === '1-up' && !f.config.pageRange) {
+        return { blob: f.originalFile, pages: f.totalPages, filename: f.name };
+    }
+
+    // CASE 2: Single PDF that needs slicing and/or 2-Up/4-Up imposition
+    if (!f.isBundle && f.type === 'application/pdf') {
+        const arrayBuffer = await f.originalFile.arrayBuffer();
+        let srcDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+
+        let pageIndices = [];
+        if (f.config.pageRange && f.config.pageRange.toLowerCase() !== 'all') {
+            pageIndices = parsePageRange(f.config.pageRange, f.totalPages);
+        } else {
+            for (let i = 0; i < srcDoc.getPageCount(); i++) pageIndices.push(i);
+        }
+        if (pageIndices.length === 0) {
+            for (let i = 0; i < srcDoc.getPageCount(); i++) pageIndices.push(i);
+        }
+
+        // If 1-up with pageRange slicing
+        if (layout === '1-up') {
+            const newDoc = await PDFLib.PDFDocument.create();
+            const copiedPages = await newDoc.copyPages(srcDoc, pageIndices);
+            copiedPages.forEach(p => newDoc.addPage(p));
+            const bytes = await newDoc.save();
+            return {
+                blob: new Blob([bytes], { type: 'application/pdf' }),
+                pages: newDoc.getPageCount(),
+                filename: f.name.replace(/\.[^.]+$/, '') + '.pdf'
+            };
+        }
+
+        // If 2-Up or 4-Up:
+        const outDoc = await PDFLib.PDFDocument.create();
+        const embeddedPages = await outDoc.embedPdf(srcDoc, pageIndices);
+
+        if (layout === '2-up') {
+            const slotW = 380.94, slotH = 555.28;
+            for (let i = 0; i < embeddedPages.length; i += 2) {
+                const sheet = outDoc.addPage(A4_LANDSCAPE);
+                drawItemInSlot(sheet, { type: 'page', obj: embeddedPages[i], width: embeddedPages[i].width, height: embeddedPages[i].height }, 20, 20, slotW, slotH);
+                if (i + 1 < embeddedPages.length) {
+                    drawItemInSlot(sheet, { type: 'page', obj: embeddedPages[i + 1], width: embeddedPages[i + 1].width, height: embeddedPages[i + 1].height }, 440.94, 20, slotW, slotH);
+                }
+                sheet.drawLine({ start: { x: 420.94, y: 15 }, end: { x: 420.94, y: 580.28 }, thickness: 0.5, color: PDFLib.rgb(0.85, 0.85, 0.85), dashArray: [4, 4] });
+            }
+        } else if (layout === '4-up') {
+            const slotW = 270, slotH = 390;
+            for (let i = 0; i < embeddedPages.length; i += 4) {
+                const sheet = outDoc.addPage(A4_PORTRAIT);
+                drawItemInSlot(sheet, { type: 'page', obj: embeddedPages[i], width: embeddedPages[i].width, height: embeddedPages[i].height }, 20, 435, slotW, slotH);
+                if (i + 1 < embeddedPages.length) drawItemInSlot(sheet, { type: 'page', obj: embeddedPages[i + 1], width: embeddedPages[i + 1].width, height: embeddedPages[i + 1].height }, 305, 435, slotW, slotH);
+                if (i + 2 < embeddedPages.length) drawItemInSlot(sheet, { type: 'page', obj: embeddedPages[i + 2], width: embeddedPages[i + 2].width, height: embeddedPages[i + 2].height }, 20, 20, slotW, slotH);
+                if (i + 3 < embeddedPages.length) drawItemInSlot(sheet, { type: 'page', obj: embeddedPages[i + 3], width: embeddedPages[i + 3].width, height: embeddedPages[i + 3].height }, 305, 20, slotW, slotH);
+                sheet.drawLine({ start: { x: 297.64, y: 15 }, end: { x: 297.64, y: 826.89 }, thickness: 0.5, color: PDFLib.rgb(0.85, 0.85, 0.85), dashArray: [4, 4] });
+                sheet.drawLine({ start: { x: 15, y: 420.94 }, end: { x: 580.28, y: 420.94 }, thickness: 0.5, color: PDFLib.rgb(0.85, 0.85, 0.85), dashArray: [4, 4] });
+            }
+        }
+
+        const bytes = await outDoc.save();
+        return {
+            blob: new Blob([bytes], { type: 'application/pdf' }),
+            pages: outDoc.getPageCount(),
+            filename: f.name.replace(/\.[^.]+$/, '') + '.pdf'
+        };
+    }
+
+    // CASE 3: Bundle of Items or Single Image
+    const outDoc = await PDFLib.PDFDocument.create();
+    const items = f.isBundle ? f.subFiles : [f];
+
+    const embeddedItems = [];
+    for (const item of items) {
+        if (item.type === 'application/pdf') {
+            const arr = await item.originalFile.arrayBuffer();
+            const subPdf = await PDFLib.PDFDocument.load(arr, { ignoreEncryption: true });
+            const indices = [];
+            for (let k = 0; k < subPdf.getPageCount(); k++) indices.push(k);
+            const embedded = await outDoc.embedPdf(subPdf, indices);
+            embedded.forEach(ep => embeddedItems.push({ type: 'page', obj: ep, width: ep.width, height: ep.height }));
+        } else {
+            const jpgBytes = await fileToJpgBytes(item.originalFile);
+            const embeddedImg = await outDoc.embedJpg(jpgBytes);
+            embeddedItems.push({ type: 'img', obj: embeddedImg, width: embeddedImg.width, height: embeddedImg.height });
+        }
+    }
+
+    if (layout === '1-up') {
+        for (const item of embeddedItems) {
+            const sheet = outDoc.addPage(A4_PORTRAIT);
+            drawItemInSlot(sheet, item, 20, 20, 555.28, 801.89);
+        }
+    } else if (layout === '2-up') {
+        const slotW = 380.94, slotH = 555.28;
+        for (let i = 0; i < embeddedItems.length; i += 2) {
+            const sheet = outDoc.addPage(A4_LANDSCAPE);
+            drawItemInSlot(sheet, embeddedItems[i], 20, 20, slotW, slotH);
+            if (i + 1 < embeddedItems.length) {
+                drawItemInSlot(sheet, embeddedItems[i + 1], 440.94, 20, slotW, slotH);
+            }
+            sheet.drawLine({ start: { x: 420.94, y: 15 }, end: { x: 420.94, y: 580.28 }, thickness: 0.5, color: PDFLib.rgb(0.85, 0.85, 0.85), dashArray: [4, 4] });
+        }
+    } else if (layout === '4-up') {
+        const slotW = 270, slotH = 390;
+        for (let i = 0; i < embeddedItems.length; i += 4) {
+            const sheet = outDoc.addPage(A4_PORTRAIT);
+            drawItemInSlot(sheet, embeddedItems[i], 20, 435, slotW, slotH);
+            if (i + 1 < embeddedItems.length) drawItemInSlot(sheet, embeddedItems[i + 1], 305, 435, slotW, slotH);
+            if (i + 2 < embeddedItems.length) drawItemInSlot(sheet, embeddedItems[i + 2], 20, 20, slotW, slotH);
+            if (i + 3 < embeddedItems.length) drawItemInSlot(sheet, embeddedItems[i + 3], 305, 20, slotW, slotH);
+            sheet.drawLine({ start: { x: 297.64, y: 15 }, end: { x: 297.64, y: 826.89 }, thickness: 0.5, color: PDFLib.rgb(0.85, 0.85, 0.85), dashArray: [4, 4] });
+            sheet.drawLine({ start: { x: 15, y: 420.94 }, end: { x: 580.28, y: 420.94 }, thickness: 0.5, color: PDFLib.rgb(0.85, 0.85, 0.85), dashArray: [4, 4] });
+        }
+    }
+
+    const bytes = await outDoc.save();
+    return {
+        blob: new Blob([bytes], { type: 'application/pdf' }),
+        pages: outDoc.getPageCount(),
+        filename: f.name.replace(/\.[^.]+$/, '') + '.pdf'
+    };
+}
+
 
 
 // ---------------------------------------------------------
@@ -1097,6 +1768,12 @@ async function submitOrder(razorpayPaymentId = null) {
     if (document.getElementById('upsell_spiral')?.checked) addons.push("[SPIRAL BIND]");
     if (document.getElementById('upsell_folder')?.checked) addons.push("[CLEAR FOLDER]");
     
+    // Layout and Gridding metadata
+    if (filesData.some(f => f.config.layout === '2-up')) addons.push("[GRID:2-UP]");
+    if (filesData.some(f => f.config.layout === '4-up')) addons.push("[GRID:4-UP]");
+    if (filesData.some(f => f.isBundle)) addons.push("[COMBINED_BUNDLE]");
+    if (filesData.some(f => f.config.sides === 'double')) addons.push("[DOUBLE_SIDED]");
+    
     if (addons.length > 0) {
         notes = addons.join(" ") + (notes ? " - " + notes : "");
     }
@@ -1167,21 +1844,15 @@ async function submitOrder(razorpayPaymentId = null) {
         for (let i = 0; i < filesData.length; i++) {
             const f = filesData[i];
             overlayTitle.textContent = `Uploading File ${i+1} of ${filesData.length}`;
-            overlayDesc.textContent = `Processing pages for ${f.name}...`;
+            overlayDesc.textContent = `Formatting pages for ${f.name}...`;
             
-            let finalBlob = f.originalFile;
-            let finalPages = f.totalPages;
-            
-            if (f.type === 'application/pdf' && f.config.pageRange) {
-                const pageIndices = parsePageRange(f.config.pageRange, f.totalPages);
-                if (pageIndices.length > 0) {
-                    finalBlob = await processPdf(f.originalFile, pageIndices);
-                    finalPages = pageIndices.length;
-                }
-            }
+            const readyPdf = await generatePrintReadyPdf(f);
+            const finalBlob = readyPdf.blob;
+            const finalPages = readyPdf.pages;
+            const finalFilename = readyPdf.filename;
             
             overlayDesc.textContent = `Transferring securely...`;
-            const storagePath = `${orderId}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            const storagePath = `${orderId}/${Date.now()}_${finalFilename.replace(/[^a-zA-Z0-9.]/g, '_')}`;
             
             // Storage Upload using Native Fetch
             const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/print-files/${storagePath}`, {
@@ -1189,7 +1860,7 @@ async function submitOrder(razorpayPaymentId = null) {
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                    'Content-Type': finalBlob.type || 'application/octet-stream'
+                    'Content-Type': 'application/pdf'
                 },
                 body: finalBlob
             });
@@ -1202,7 +1873,7 @@ async function submitOrder(razorpayPaymentId = null) {
             // Insert File Metadata using Native Fetch
             const filePayload = {
                 order_id: orderId,
-                filename: f.name,
+                filename: finalFilename,
                 storage_path: storagePath,
                 pages: finalPages,
                 copies: parseInt(f.config.copies),
