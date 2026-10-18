@@ -437,13 +437,30 @@ def process_order(order):
         if not os.path.exists(local_path):
             continue
             
+        # Real-time cancellation check before processing file
+        try:
+            status_check = supabase.table('printhub_orders').select('status').eq('id', order_id).execute()
+            if status_check.data and status_check.data[0].get('status') == 'Cancelled':
+                logger.warning(f"Print job for order #{order_id[:8]} was CANCELLED by operator. Halting print execution immediately.")
+                # Zero-trace cleanup of downloaded temp files
+                for f_cleanup in files_res.data:
+                    local_cleanup_path = os.path.join(TEMP_DIR, os.path.basename(f_cleanup['storage_path']))
+                    if os.path.exists(local_cleanup_path):
+                        try:
+                            os.remove(local_cleanup_path)
+                        except Exception:
+                            pass
+                return
+        except Exception as sc_err:
+            logger.error(f"Error verifying cancellation status: {sc_err}")
+
         is_color = f_rec.get('color_mode') == 'color'
         color_str = f"{Colors.BLUE}[COLOR]{Colors.RESET}" if is_color else f"{Colors.BOLD}[B&W]{Colors.RESET}"
         copies = f_rec.get('copies', 1)
         
         print("")
         print(f"{Colors.CYAN}========================================={Colors.RESET}")
-        print(f"{Colors.YELLOW}🖨️  PROCESSING FILE ({print_mode.upper()}){Colors.RESET}")
+        print(f"{Colors.YELLOW}>> PROCESSING FILE ({print_mode.upper()}){Colors.RESET}")
         print(f"File: {Colors.BOLD}{fname}{Colors.RESET}")
         print(f"Settings: {color_str} | {copies} Copies")
         print(f"{Colors.CYAN}========================================={Colors.RESET}")
@@ -500,6 +517,15 @@ def process_order(order):
                 try:
                     os.remove(local_path)
                 except: pass
+
+    # Guard: do not mark Printed if the order was cancelled mid-job
+    try:
+        final_check = supabase.table('printhub_orders').select('status').eq('id', order_id).execute()
+        if final_check.data and final_check.data[0].get('status') == 'Cancelled':
+            logger.warning(f"Order #{order_id[:8]} was marked Cancelled. Skipping update to Printed.")
+            return
+    except Exception:
+        pass
 
     supabase.table('printhub_orders').update({'status': 'Printed'}).eq('id', order_id).execute()
     logger.info(f"Order #{order_id[:8]} marked as printed. Awaiting next order...")
