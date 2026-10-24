@@ -491,7 +491,7 @@ def rpc_purge_spooler():
                 "Write-Output $count"
             )
             creation_flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-            res = subprocess.run(['powershell', '-Command', ps_script], capture_output=True, text=True, creationflags=creation_flags)
+            res = subprocess.run(['powershell', '-Command', ps_script], capture_output=True, text=True, timeout=15, creationflags=creation_flags)
             deleted_count = res.stdout.strip() or "0"
             return True, f"Windows Print Spooler purged. {deleted_count} queued job(s) removed."
         except Exception as e:
@@ -500,7 +500,7 @@ def rpc_purge_spooler():
         return True, "Simulated spooler purge completed (Mock dev environment)."
 
 def rpc_test_print(target_printer=None):
-    """Spools a diagnostic test sheet to the designated hardware."""
+    """Spools a diagnostic test sheet to the designated hardware with timeout."""
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
         test_file = os.path.join(TEMP_DIR, f"printhub_test_{int(time.time())}.pdf")
@@ -516,7 +516,7 @@ def rpc_test_print(target_printer=None):
                 else:
                     cmd_args.extend(["-print-to-default"])
                 cmd_args.extend(["-print-settings", "1x,monochrome", os.path.abspath(test_file)])
-                subprocess.run(cmd_args, shell=False)
+                subprocess.run(cmd_args, shell=False, timeout=45, capture_output=True)
                 return True, f"Diagnostic test page successfully spooled to '{printer_label}'."
             else:
                 return False, "SumatraPDF engine not ready on host machine."
@@ -806,7 +806,7 @@ def get_queue_stats():
     return stats
 
 def download_order_files_for_queue(order_id):
-    """Downloads all cloud files for an order into local storage."""
+    """Downloads all cloud files for an order into local storage with unique file prefixing and timeout."""
     files_res = supabase.table('printhub_files').select('*').eq('order_id', order_id).execute()
     if not files_res.data:
         return []
@@ -816,29 +816,37 @@ def download_order_files_for_queue(order_id):
     headers = {"Authorization": f"Bearer {session.access_token}"} if session else {}
 
     for f_rec in files_res.data:
+        file_id = f_rec.get('id', 'fid')
         storage_path = f_rec['storage_path']
-        filename = os.path.basename(storage_path)
-        local_filename = os.path.join(TEMP_DIR, filename)
+        raw_basename = os.path.basename(storage_path)
+        safe_filename = f"{file_id}_{raw_basename}"
+        local_filename = os.path.join(TEMP_DIR, safe_filename)
 
         if not os.path.exists(local_filename) or os.path.getsize(local_filename) == 0:
             file_url = f"{supabase.supabase_url}/storage/v1/object/authenticated/print-files/{storage_path}"
-            r = requests.get(file_url, headers=headers)
-            if r.status_code == 200:
-                with open(local_filename, 'wb') as lf:
-                    lf.write(r.content)
-            else:
-                public_url = supabase.storage.from_("print-files").get_public_url(storage_path)
-                pr = requests.get(public_url)
-                if pr.status_code == 200:
+            try:
+                r = requests.get(file_url, headers=headers, timeout=30)
+                if r.status_code == 200:
                     with open(local_filename, 'wb') as lf:
-                        lf.write(pr.content)
+                        lf.write(r.content)
                 else:
-                    raise IOError(f"Could not download {storage_path}")
+                    public_url = supabase.storage.from_("print-files").get_public_url(storage_path)
+                    pr = requests.get(public_url, timeout=30)
+                    if pr.status_code == 200:
+                        with open(local_filename, 'wb') as lf:
+                            lf.write(pr.content)
+                    else:
+                        raise IOError(f"Could not download {storage_path} (HTTP {pr.status_code})")
+            except Exception as dl_net_err:
+                if os.path.exists(local_filename):
+                    try: os.remove(local_filename)
+                    except: pass
+                raise dl_net_err
 
         downloaded_records.append({
-            "id": f_rec['id'],
+            "id": file_id,
             "storage_path": storage_path,
-            "filename": filename,
+            "filename": raw_basename,
             "local_path": local_filename,
             "pages": f_rec.get('pages', 1),
             "copies": f_rec.get('copies', 1),
@@ -849,7 +857,7 @@ def download_order_files_for_queue(order_id):
     return downloaded_records
 
 def spool_local_order(order_row, files_data):
-    """Executes physical print or preview for an order."""
+    """Executes physical print or preview for an order with timeout and page-range enforcement."""
     order_id = order_row['order_id']
     notes_raw = order_row['notes'] or ''
     
@@ -905,9 +913,21 @@ def spool_local_order(order_row, files_data):
                 cmd_args.extend(["-print-to-default"])
                 logger.info(f"{Colors.GREEN}Routing to Default Windows Printer{Colors.RESET}")
             
-            cmd_args.extend(["-print-settings", f"{copies}x,{color_flag}", abs_path])
-            subprocess.run(cmd_args, shell=False)
-            logger.info(f"{Colors.GREEN}Successfully spooled {fname}.{Colors.RESET}")
+            # Enforce page range if requested
+            settings_parts = [f"{copies}x", color_flag]
+            page_range = f_rec.get('page_range')
+            if page_range and isinstance(page_range, str) and page_range.strip() and page_range.strip().lower() != 'all':
+                sanitized_range = "".join(c for c in page_range if c.isdigit() or c in ",-")
+                if sanitized_range:
+                    settings_parts.append(sanitized_range)
+
+            cmd_args.extend(["-print-settings", ",".join(settings_parts), abs_path])
+            try:
+                subprocess.run(cmd_args, shell=False, timeout=60, capture_output=True)
+                logger.info(f"{Colors.GREEN}Successfully spooled {fname}.{Colors.RESET}")
+            except subprocess.TimeoutExpired:
+                logger.error(f"SumatraPDF timed out (60s) while spooling {fname}")
+                raise TimeoutError(f"Print engine timed out while spooling {fname}")
         else:
             if platform.system() == "Windows":
                 try:
@@ -1293,22 +1313,41 @@ class ConfigHandler(BaseHTTPRequestHandler):
         pass # Suppress HTTP logs to keep terminal clean
 
 def garbage_collector():
-    """Background thread to delete manual-preview PDFs older than 15 minutes"""
+    """Background thread to safely clean orphaned temp files strictly for completed or cancelled orders."""
     import time
     while True:
         try:
             now = time.time()
+            active_paths = set()
+            try:
+                with _db_lock:
+                    conn = get_queue_db()
+                    cur = conn.cursor()
+                    cur.execute("SELECT files_json FROM local_spool_queue WHERE status IN ('QUEUED', 'DOWNLOADING', 'READY', 'SPOOLING')")
+                    active_rows = cur.fetchall()
+                    conn.close()
+
+                for r in active_rows:
+                    if r['files_json']:
+                        try:
+                            for f in json.loads(r['files_json']):
+                                if f.get('local_path'):
+                                    active_paths.add(os.path.abspath(f['local_path']))
+                        except Exception: pass
+            except Exception: pass
+
             for filename in os.listdir(TEMP_DIR):
-                file_path = os.path.join(TEMP_DIR, filename)
-                if os.path.isfile(file_path):
-                    if os.stat(file_path).st_mtime < now - 900:
+                file_path = os.path.abspath(os.path.join(TEMP_DIR, filename))
+                if os.path.isfile(file_path) and file_path not in active_paths:
+                    # Only remove if older than 2 hours to protect active spools
+                    if os.stat(file_path).st_mtime < now - 7200:
                         try:
                             os.remove(file_path)
-                            logger.info(f"Garbage collected old file: {filename}")
-                        except: pass
+                            logger.info(f"Safely purged orphaned spool cache: {filename}")
+                        except Exception: pass
         except Exception:
             pass
-        time.sleep(300)
+        time.sleep(600)
 
 def run_local_server():
     try:

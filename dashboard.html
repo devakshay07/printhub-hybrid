@@ -673,8 +673,8 @@
                     <i data-lucide="${iconName}" class="w-4 h-4"></i>
                 </div>
                 <div class="flex-1 min-w-0 pt-0.5">
-                    <div class="text-xs font-bold text-slate-900 dark:text-white truncate">${title}</div>
-                    <div class="text-[11px] font-medium text-slate-600 dark:text-slate-400 leading-snug mt-0.5">${message}</div>
+                    <div class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHTML(title)}</div>
+                    <div class="text-[11px] font-medium text-slate-600 dark:text-slate-400 leading-snug mt-0.5">${escapeHTML(message)}</div>
                 </div>
                 <button onclick="dismissToast('${toastId}')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg transition-colors shrink-0">
                     <i data-lucide="x" class="w-3.5 h-3.5"></i>
@@ -732,10 +732,22 @@
         }
     };
 
-    // WEB AUDIO LIVE CHIME NOTIFICATION (100% offline, synthesized)
+    // WEB AUDIO LIVE CHIME NOTIFICATION (Singleton, offline, synthesized)
+    let _audioCtx = null;
+    function getAudioContext() {
+        if (!_audioCtx || _audioCtx.state === 'closed') {
+            _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (_audioCtx.state === 'suspended') {
+            _audioCtx.resume().catch(() => {});
+        }
+        return _audioCtx;
+    }
+
     function playChime() {
         try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = getAudioContext();
+            if (ctx.state === 'suspended') return;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
@@ -749,6 +761,12 @@
             osc.stop(ctx.currentTime + 0.5);
         } catch(e) {}
     }
+
+    document.addEventListener('click', () => {
+        if (_audioCtx && _audioCtx.state === 'suspended') {
+            _audioCtx.resume().catch(() => {});
+        }
+    }, { once: true });
 
     const authScreen = document.getElementById('auth-screen');
     const dashboardScreen = document.getElementById('dashboard-screen');
@@ -985,8 +1003,10 @@
         }
     }
 
+    let isPollingOrders = false;
     async function fetchOrders() {
-        if (!shopId) return;
+        if (!shopId || isPollingOrders) return;
+        isPollingOrders = true;
         try {
             // Heartbeat & Live Subscription update
             const shopRes = await supabaseFetch(`/rest/v1/printhub_shops?id=eq.${shopId}&select=active_device_id,is_active,subscription_expiry`);
@@ -1002,9 +1022,10 @@
                 if (serverStatus) {
                     let lastHeartbeat = 0;
                     let clientVersion = null;
+                    let parsed = null;
                     if (hwidStr.startsWith('{')) {
                         try {
-                            const parsed = JSON.parse(hwidStr);
+                            parsed = JSON.parse(hwidStr);
                             lastHeartbeat = parseInt(parsed.ts || '0', 10);
                             window.lastHeartbeatTime = lastHeartbeat;
                             window.globalPrinters = parsed.printers || [];
@@ -1165,6 +1186,8 @@
             }
         } catch (e) {
             sysLog('Queue fetch error: ' + e.message);
+        } finally {
+            isPollingOrders = false;
         }
     }
 
@@ -1426,7 +1449,7 @@
 
         tbody.innerHTML = allOrders.map(o => {
             const amt = parseFloat(o.total_amount) || 0;
-            if (o.status === 'Paid') {
+            if (o.status === 'Paid' || o.status === 'Printed') {
                 totalRev += amt;
                 completed++;
             } else if (o.status === 'Pending') {
@@ -1436,7 +1459,7 @@
             const dt = new Date(o.created_at);
             const formattedDate = dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             
-            const badgeClass = o.status === 'Paid' ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
+            const badgeClass = (o.status === 'Paid' || o.status === 'Printed') ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
                                o.status === 'Cancelled' ? 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800';
 
             const isOnline = (o.payment_mode === 'online') || (o.notes && (o.notes.includes('[ONLINE_PREPAID') || o.notes.includes('[ONLINE]')));
@@ -1446,8 +1469,8 @@
                     <td class="px-6 py-4 font-medium text-slate-500 dark:text-slate-400">${formattedDate}</td>
                     <td class="px-6 py-4 font-mono font-bold text-slate-700 dark:text-slate-300">#${o.id.substring(0,8)}</td>
                     <td class="px-6 py-4">
-                        <div class="font-bold text-slate-900 dark:text-white">${o.customer_name || 'Guest'}</div>
-                        <div class="text-[10px] text-slate-400">${o.customer_phone || ''}</div>
+                        <div class="font-bold text-slate-900 dark:text-white">${escapeHTML(o.customer_name || 'Guest')}</div>
+                        <div class="text-[10px] text-slate-400">${escapeHTML(o.customer_phone || '')}</div>
                     </td>
                     <td class="px-6 py-4 capitalize font-medium text-slate-700 dark:text-slate-300">
                         ${isOnline ? '<span class="text-emerald-600 dark:text-emerald-400 font-bold">Online (Razorpay)</span>' : 'Counter'}
@@ -1455,7 +1478,7 @@
                     <td class="px-6 py-4 font-bold text-slate-900 dark:text-white">₹${amt.toFixed(2)}</td>
                     <td class="px-6 py-4">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}">
-                            ${o.status}
+                            ${escapeHTML(o.status)}
                         </span>
                     </td>
                 </tr>
@@ -1465,6 +1488,14 @@
         document.getElementById('report-total-revenue').textContent = `₹${totalRev.toFixed(2)}`;
         document.getElementById('report-completed-count').textContent = completed;
         document.getElementById('report-pending-count').textContent = pending;
+    }
+
+    function sanitizeCsvCell(str) {
+        let clean = (str || '').toString().replace(/"/g, '""');
+        if (/^[=+@-]/.test(clean)) {
+            clean = "'" + clean;
+        }
+        return `"${clean}"`;
     }
 
     window.downloadCSV = function() {
@@ -1477,13 +1508,21 @@
             return;
         }
         
-        let csv = 'Order ID,Date,Customer Name,Phone,Amount,Status,Payment Mode\n';
+        let csv = 'Order ID,Date,Customer Name,Phone,Amount,Status,Payment Mode\r\n';
         allOrders.forEach(o => {
             const isOnline = (o.payment_mode === 'online') || (o.notes && (o.notes.includes('[ONLINE_PREPAID') || o.notes.includes('[ONLINE]')));
-            csv += `"${o.id}","${o.created_at}","${o.customer_name || ''}","${o.customer_phone || ''}","${o.total_amount}","${o.status}","${isOnline ? 'online' : 'counter'}"\n`;
+            csv += [
+                sanitizeCsvCell(o.id),
+                sanitizeCsvCell(o.created_at),
+                sanitizeCsvCell(o.customer_name || ''),
+                sanitizeCsvCell(o.customer_phone || ''),
+                sanitizeCsvCell(o.total_amount),
+                sanitizeCsvCell(o.status),
+                sanitizeCsvCell(isOnline ? 'online' : 'counter')
+            ].join(',') + '\r\n';
         });
         
-        const blob = new Blob([csv], { type: 'text/csv' });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -1491,6 +1530,7 @@
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     }
 
     const pendingSpoolTimers = new Map();
@@ -2201,7 +2241,7 @@
                                 <span onclick="event.stopPropagation(); copyText('#${order.id.substring(0,8)}', 'Order ID')" class="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" title="Click to copy Order ID">
                                     #${order.id.substring(0,8)}
                                 </span>
-                                <span class="font-bold text-sm text-slate-900 dark:text-white truncate">${order.customer_name || 'Guest Customer'}</span>
+                                <span class="font-bold text-sm text-slate-900 dark:text-white truncate">${escapeHTML(order.customer_name || 'Guest Customer')}</span>
                                 ${isOnlinePaid ? `
                                 <span class="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
                                     <i data-lucide="credit-card" class="w-3 h-3 text-emerald-500"></i> Paid Online
@@ -2215,7 +2255,7 @@
                             </div>
                             
                             <div class="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 mt-1">
-                                <span>${order.customer_phone || 'No phone'}</span>
+                                <span>${escapeHTML(order.customer_phone || 'No phone')}</span>
                                 <span>•</span>
                                 <span class="font-medium text-slate-600 dark:text-slate-400">${files.length} ${files.length === 1 ? 'file' : 'files'} (${totalPrints} prints)</span>
                             </div>
@@ -2315,7 +2355,7 @@
                                         </div>
                                         
                                         <div class="p-3 bg-white dark:bg-slate-900 flex flex-col gap-1.5">
-                                            <div class="text-[11px] font-bold truncate text-slate-900 dark:text-white" title="${f.filename}">${f.filename}</div>
+                                            <div class="text-[11px] font-bold truncate text-slate-900 dark:text-white" title="${escapeQuotes(f.filename)}">${escapeHTML(f.filename)}</div>
                                             <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
                                                 <span class="inline-flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700">
                                                     <i data-lucide="files" class="w-3 h-3 text-slate-400"></i> ${f.pages || 1} ${f.pages === 1 ? 'Page' : 'Pages'}
@@ -2377,6 +2417,16 @@
 
     function escapeQuotes(str) {
         return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    function escapeHTML(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 </script>
 </body>

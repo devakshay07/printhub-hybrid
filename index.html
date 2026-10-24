@@ -493,16 +493,6 @@ function copyPinValue() {
     }
 }
 
-function adjustCopies(id, delta) {
-    const f = filesData.find(x => x.id === id);
-    if (f) {
-        const cur = parseInt(f.config.copies) || 1;
-        f.config.copies = Math.max(1, cur + delta);
-        renderFileList();
-        calculateTotal();
-    }
-}
-
 function escapeHtml(str) {
     return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
@@ -563,7 +553,8 @@ async function initializeTenant() {
         const shopData = data.length > 0 ? data[0] : null;
         
         if (!shopData) {
-            document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center bg-slate-50"><div class="text-center p-8 bg-white rounded-3xl shadow-xl max-w-md"><i data-lucide="ghost" class="w-16 h-16 text-slate-300 mx-auto mb-4"></i><h1 class="text-2xl font-bold text-slate-800 mb-2">404 - Shop Not Found</h1><p class="text-slate-500">The print shop at '${subdomain}' does not exist on our platform.</p></div></div>`;
+            const safeSubdomain = escapeHtml(subdomain);
+            document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center bg-slate-50"><div class="text-center p-8 bg-white rounded-3xl shadow-xl max-w-md"><i data-lucide="ghost" class="w-16 h-16 text-slate-300 mx-auto mb-4"></i><h1 class="text-2xl font-bold text-slate-800 mb-2">404 - Shop Not Found</h1><p class="text-slate-500">The print shop at '${safeSubdomain}' does not exist on our platform.</p></div></div>`;
             if(window.lucide) { try { lucide.createIcons(); } catch(e){} }
             return;
         }
@@ -1678,18 +1669,8 @@ function closeSlicer() {
 // ---------------------------------------------------------
 // PDF PROCESSING & CHECKOUT LOGIC
 // ---------------------------------------------------------
-async function processPdf(fileObj, pageIndices) {
-    const arrayBuffer = await fileObj.arrayBuffer();
-    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-    const newPdf = await PDFLib.PDFDocument.create();
-    const copiedPages = await newPdf.copyPages(pdfDoc, pageIndices);
-    copiedPages.forEach((page) => newPdf.addPage(page));
-    const pdfBytes = await newPdf.save();
-    return new Blob([pdfBytes], { type: 'application/pdf' });
-}
-
 function handleCheckout() {
-    if (filesData.length === 0) return alert('Please upload at least one file first.');
+    if (filesData.length === 0) return showError('Files Required', 'Please upload at least one document before proceeding.');
     const name = document.getElementById('c_name').value.trim();
     const phone = document.getElementById('c_phone').value.trim();
     
@@ -1708,7 +1689,7 @@ function handleCheckout() {
     // Trigger Razorpay if Online Payment is enabled and selected
     if (currentPaymentMethod === 'online' && PAYMENT_CONFIG.enabled && PAYMENT_CONFIG.key_id && totalAmount > 0) {
         if (typeof Razorpay === 'undefined') {
-            alert('Razorpay gateway SDK failed to load. Please switch to Pay at Counter or check your internet connection.');
+            showError('Gateway Unavailable', 'Razorpay gateway SDK failed to load. Please switch to Pay at Counter or check your internet connection.');
             return;
         }
 
@@ -1796,9 +1777,9 @@ async function submitOrder(razorpayPaymentId = null) {
         overlayTitle.textContent = 'Preparing files...';
         overlayDesc.textContent = 'Generating secure PIN...';
         
-        const randomPart = Math.floor(10 + Math.random() * 90).toString();
-        const phoneSuffix = phone.length >= 2 ? phone.slice(-2) : "00";
-        const otpCode = randomPart + phoneSuffix;
+        const otpBuffer = new Uint32Array(1);
+        crypto.getRandomValues(otpBuffer);
+        const otpCode = (1000 + (otpBuffer[0] % 9000)).toString();
         
         const initialStatus = 'Pending';
         
