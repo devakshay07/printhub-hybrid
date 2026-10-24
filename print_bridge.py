@@ -129,6 +129,32 @@ HWID = get_hwid()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
 logger = logging.getLogger('PrintBridge')
 
+# Master In-Memory Log Buffer for Superadmin Real-Time Terminal Telemetry
+import collections, re
+LOG_BUFFER = collections.deque(maxlen=40)
+
+class RingBufferLogHandler(logging.Handler):
+    """Buffers live bridge execution logs for delivery to Superadmin Console."""
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            clean_msg = re.sub(r'\x1b\[[0-9;]*m', '', msg)
+            LOG_BUFFER.append({
+                "ts": int(record.created),
+                "time": time.strftime('%H:%M:%S', time.localtime(record.created)),
+                "level": record.levelname,
+                "msg": clean_msg
+            })
+        except Exception:
+            pass
+
+ring_handler = RingBufferLogHandler()
+ring_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', '%H:%M:%S'))
+logger.addHandler(ring_handler)
+
+def get_recent_logs():
+    return list(LOG_BUFFER)
+
 load_dotenv()
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://mzkizzakuporgzljealz.supabase.co")
@@ -949,42 +975,55 @@ def spool_queue_worker():
 
             if queued_row:
                 order_id = queued_row['order_id']
-                is_cancelled = False
-                try:
-                    sc = supabase.table('printhub_orders').select('status').eq('id', order_id).execute()
-                    if sc.data and sc.data[0].get('status') == 'Cancelled':
-                        is_cancelled = True
-                except Exception: pass
+                retry_count = queued_row['retry_count'] or 0
 
-                if is_cancelled:
+                # Productivity guard: If an order failed to download 3 times, fail it and proceed
+                if retry_count >= 3:
                     with _db_lock:
                         conn = get_queue_db()
                         with conn:
-                            conn.execute("UPDATE local_spool_queue SET status = 'CANCELLED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
+                            conn.execute("UPDATE local_spool_queue SET status = 'FAILED', error_msg = 'Aborted after 3 failed download attempts', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
                         conn.close()
-                    logger.warning(f"Order #{order_id[:8]} was marked CANCELLED in cloud. Ignored.")
+                    logger.error(f"Order #{order_id[:8]} exceeded download retry threshold. Deferring to prevent queue stall.")
                 else:
+                    is_cancelled = False
                     try:
-                        with _db_lock:
-                            conn = get_queue_db()
-                            with conn:
-                                conn.execute("UPDATE local_spool_queue SET status = 'DOWNLOADING', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
-                            conn.close()
+                        sc = supabase.table('printhub_orders').select('status').eq('id', order_id).execute()
+                        if sc.data and sc.data[0].get('status') == 'Cancelled':
+                            is_cancelled = True
+                    except Exception as net_check_err:
+                        # Uplink down: do not block or freeze, proceed with print
+                        logger.warning(f"Could not verify cloud cancellation for #{order_id[:8]} ({net_check_err}). Proceeding.")
 
-                        files_data = download_order_files_for_queue(order_id)
+                    if is_cancelled:
                         with _db_lock:
                             conn = get_queue_db()
                             with conn:
-                                conn.execute("UPDATE local_spool_queue SET status = 'READY', files_json = ?, updated_at = ? WHERE order_id = ?", (json.dumps(files_data), int(time.time()), order_id))
+                                conn.execute("UPDATE local_spool_queue SET status = 'CANCELLED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
                             conn.close()
-                        logger.info(f"Order #{order_id[:8]} cached locally [READY].")
-                    except Exception as dl_err:
-                        logger.error(f"Download failure for Order #{order_id[:8]}: {dl_err}")
-                        with _db_lock:
-                            conn = get_queue_db()
-                            with conn:
-                                conn.execute("UPDATE local_spool_queue SET status = 'QUEUED', retry_count = retry_count + 1, error_msg = ?, updated_at = ? WHERE order_id = ?", (str(dl_err), int(time.time()), order_id))
-                            conn.close()
+                        logger.warning(f"Order #{order_id[:8]} was marked CANCELLED in cloud. Ignored.")
+                    else:
+                        try:
+                            with _db_lock:
+                                conn = get_queue_db()
+                                with conn:
+                                    conn.execute("UPDATE local_spool_queue SET status = 'DOWNLOADING', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
+                                conn.close()
+
+                            files_data = download_order_files_for_queue(order_id)
+                            with _db_lock:
+                                conn = get_queue_db()
+                                with conn:
+                                    conn.execute("UPDATE local_spool_queue SET status = 'READY', files_json = ?, updated_at = ? WHERE order_id = ?", (json.dumps(files_data), int(time.time()), order_id))
+                                conn.close()
+                            logger.info(f"Order #{order_id[:8]} cached locally [READY].")
+                        except Exception as dl_err:
+                            logger.error(f"Download failure for Order #{order_id[:8]}: {dl_err}")
+                            with _db_lock:
+                                conn = get_queue_db()
+                                with conn:
+                                    conn.execute("UPDATE local_spool_queue SET status = 'QUEUED', retry_count = retry_count + 1, error_msg = ?, updated_at = ? WHERE order_id = ?", (str(dl_err), int(time.time()), order_id))
+                                conn.close()
 
             # 3. Spool Loop: Transition READY -> PRINTED
             with _db_lock:
@@ -1001,7 +1040,8 @@ def spool_queue_worker():
                     sc = supabase.table('printhub_orders').select('status').eq('id', order_id).execute()
                     if sc.data and sc.data[0].get('status') == 'Cancelled':
                         is_cancelled = True
-                except Exception: pass
+                except Exception as net_check_err:
+                    logger.warning(f"Cloud cancellation check failed for #{order_id[:8]} ({net_check_err}). Printing anyway.")
 
                 if is_cancelled:
                     with _db_lock:
@@ -1023,15 +1063,23 @@ def spool_queue_worker():
                             conn.execute("UPDATE local_spool_queue SET status = 'SPOOLING', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
                         conn.close()
 
-                    files_data = json.loads(ready_row['files_json'] or '[]')
-                    spool_local_order(ready_row, files_data)
+                    try:
+                        files_data = json.loads(ready_row['files_json'] or '[]')
+                        spool_local_order(ready_row, files_data)
 
-                    with _db_lock:
-                        conn = get_queue_db()
-                        with conn:
-                            conn.execute("UPDATE local_spool_queue SET status = 'PRINTED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
-                        conn.close()
-                    logger.info(f"{Colors.GREEN}[PHYSICAL PRINT COMPLETE]{Colors.RESET} Order #{order_id[:8]} printed.")
+                        with _db_lock:
+                            conn = get_queue_db()
+                            with conn:
+                                conn.execute("UPDATE local_spool_queue SET status = 'PRINTED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
+                            conn.close()
+                        logger.info(f"{Colors.GREEN}[PHYSICAL PRINT COMPLETE]{Colors.RESET} Order #{order_id[:8]} printed.")
+                    except Exception as spool_err:
+                        logger.error(f"Hardware spool error for #{order_id[:8]}: {spool_err}")
+                        with _db_lock:
+                            conn = get_queue_db()
+                            with conn:
+                                conn.execute("UPDATE local_spool_queue SET status = 'FAILED', error_msg = ?, updated_at = ? WHERE order_id = ?", (str(spool_err), int(time.time()), order_id))
+                            conn.close()
 
         except Exception as q_err:
             logger.error(f"Error in Spool Queue worker: {q_err}")
@@ -1465,7 +1513,8 @@ def main():
                     "selected_printer": selected_printer if selected_printer in printers else (printers[0] if printers else None),
                     "version": BRIDGE_VERSION,
                     "hardware": telemetry_data,
-                    "queue": queue_stats
+                    "queue": queue_stats,
+                    "logs": get_recent_logs()
                 }
                 if 'cmd_result' in device_data:
                     payload['cmd_result'] = device_data['cmd_result']

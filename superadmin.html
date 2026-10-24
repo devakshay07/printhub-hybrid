@@ -316,6 +316,134 @@
         </div>
     </div>
 
+    <!-- SUPERADMIN BRIDGE TERMINAL & DIAGNOSTICS MODAL -->
+    <div id="bridge-terminal-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 fade-in">
+        <div class="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+            <!-- MODAL HEADER -->
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-slate-900 text-cyan-400 flex items-center justify-center shrink-0 border border-slate-800 shadow-sm">
+                        <i data-lucide="terminal" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>Bridge Terminal:</span>
+                            <span id="term-shop-name" class="text-blue-600">Loading...</span>
+                            <span id="term-link-status" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Probing
+                            </span>
+                        </h3>
+                        <p class="text-xs text-slate-500 font-mono" id="term-subdomain">subdomain.vercel.app</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+                        <input type="checkbox" id="term-auto-refresh" checked onchange="toggleTerminalAutoRefresh(this.checked)" class="rounded text-blue-600">
+                        <span>Live Stream (3s)</span>
+                    </label>
+                    <button onclick="refreshCurrentTerminal()" class="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors" title="Force Refresh">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="closeSuperadminTerminal()" class="p-2 rounded-xl text-slate-400 hover:text-slate-600 transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- MODAL BODY -->
+            <div class="p-6 overflow-y-auto space-y-5 flex-1">
+                <!-- METRICS STRIP -->
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Hardware ID Lock</span>
+                        <span id="term-hwid" class="text-xs font-mono font-bold text-slate-800 break-all">Detecting...</span>
+                    </div>
+                    <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Engine Version</span>
+                        <span id="term-version" class="text-xs font-mono font-bold text-blue-600">v1.3.0</span>
+                    </div>
+                    <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Local Spool Queue</span>
+                        <span id="term-queue" class="text-xs font-mono font-bold text-slate-800">0 Active (Safe)</span>
+                    </div>
+                    <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">WMI Sensor Health</span>
+                        <span id="term-hw-status" class="text-xs font-semibold text-emerald-700">Hardware Ready</span>
+                    </div>
+                </div>
+
+                <!-- HARDWARE DEVICES DETAIL (IF ANY) -->
+                <div id="term-devices-container" class="hidden bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">Detected Print Spoolers</span>
+                    <div id="term-devices-list" class="space-y-1.5 text-xs font-mono"></div>
+                </div>
+
+                <!-- SUPERADMIN REMOTE RPC COMMAND DECK -->
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i> Superadmin Remote RPC Dispatch
+                        </h4>
+                        <span class="text-[11px] text-slate-400 font-medium">Zero-downtime execution on shop computer</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <button onclick="sendTerminalRpc('purge_spooler', this)" class="p-2.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5 active:scale-95">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-500"></i> Purge Spooler
+                        </button>
+                        <button onclick="sendTerminalRpc('test_print', this)" class="p-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-200 text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5 active:scale-95">
+                            <i data-lucide="printer" class="w-3.5 h-3.5 text-emerald-500"></i> Spool Test Page
+                        </button>
+                        <button onclick="sendTerminalRpc('check_update', this)" class="p-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200 text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5 active:scale-95">
+                            <i data-lucide="download-cloud" class="w-3.5 h-3.5 text-blue-500"></i> Trigger Update
+                        </button>
+                        <button onclick="sendTerminalRpc('restart_bridge', this)" class="p-2.5 rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200 hover:border-amber-200 text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5 active:scale-95">
+                            <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-amber-500"></i> Reboot Engine
+                        </button>
+                    </div>
+                    <div id="term-rpc-status" class="hidden mt-2 p-2.5 rounded-xl text-xs font-medium border"></div>
+                </div>
+
+                <!-- REAL-TIME LOG STREAM VIEWER -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-500"></i> Live Bridge Execution Logs
+                            </h4>
+                            <span id="term-log-count" class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">0 events</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="filterTerminalLogs('all')" id="btn-log-all" class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-900 text-white">All</button>
+                            <button onclick="filterTerminalLogs('errors')" id="btn-log-err" class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">Errors Only</button>
+                            <button onclick="copyTerminalLogs()" class="text-[11px] font-semibold text-slate-400 hover:text-slate-600 ml-1">Copy</button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-950 rounded-2xl p-4 border border-slate-800 shadow-inner">
+                        <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/80">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+                                <span class="text-[10px] font-mono text-slate-500 ml-2" id="term-log-stream-path">telemetry://active_device_id/logs</span>
+                            </div>
+                            <span class="text-[10px] font-mono text-slate-500" id="term-last-sync">Sync: Standby</span>
+                        </div>
+                        <pre id="term-log-pre" class="font-mono text-[11px] text-slate-300 h-64 overflow-y-auto leading-relaxed select-text whitespace-pre-wrap">Awaiting telemetry logs from bridge engine...</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL FOOTER -->
+            <div class="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <span class="text-xs text-slate-400 font-medium">Accessible strictly to Superadmin console.</span>
+                <button onclick="closeSuperadminTerminal()" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all">
+                    Close Terminal
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- TOAST NOTIFICATION CONTAINER -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
 
@@ -532,14 +660,45 @@
                 }
 
                 let hwidDisplay = '<span class="text-slate-400 font-medium text-[11px]">Unbound</span>';
+                let bridgePill = '';
+                let hwTelemetryBadge = '';
+
                 if (shop.active_device_id) {
                     let hwidShort = shop.active_device_id;
+                    let lastTs = 0;
+                    let clientVer = '1.3.0';
+                    let hwData = null;
+
                     if (hwidShort.startsWith('{')) {
-                        try { hwidShort = JSON.parse(hwidShort).hwid || hwidShort; } catch(e){}
+                        try {
+                            const parsed = JSON.parse(hwidShort);
+                            hwidShort = parsed.hwid || hwidShort;
+                            lastTs = parseInt(parsed.ts || '0', 10);
+                            clientVer = parsed.version || '1.3.0';
+                            hwData = parsed.hardware || null;
+                        } catch(e){}
                     } else if (hwidShort.includes('|')) {
-                        hwidShort = hwidShort.split('|')[0];
+                        const parts = hwidShort.split('|');
+                        hwidShort = parts[0];
+                        lastTs = parseInt(parts[1] || '0', 10);
                     }
-                    hwidDisplay = `<span class="font-mono text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200" title="${shop.active_device_id}">${hwidShort.substring(0, 12)}...</span>`;
+
+                    const isOnline = lastTs > 0 && ((Date.now() / 1000) - lastTs < 35);
+                    if (isOnline) {
+                        bridgePill = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> v${clientVer}</span>`;
+                    } else {
+                        bridgePill = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Offline</span>`;
+                    }
+
+                    if (isOnline && hwData) {
+                        if (hwData.status === 'error') {
+                            hwTelemetryBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 animate-pulse" title="${hwData.message}"><i data-lucide="alert-circle" class="w-2.5 h-2.5 text-rose-600"></i> ${hwData.error_state.replace('_', ' ').toUpperCase()}</span>`;
+                        } else if (hwData.status === 'warning') {
+                            hwTelemetryBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="${hwData.message}"><i data-lucide="alert-triangle" class="w-2.5 h-2.5 text-amber-600"></i> WARN</span>`;
+                        }
+                    }
+
+                    hwidDisplay = `<span class="font-mono text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200" title="${shop.active_device_id}">${hwidShort.substring(0, 10)}...</span>`;
                 }
 
                 const tr = document.createElement('tr');
@@ -576,17 +735,26 @@
                         <div class="text-[10px] text-slate-400">ISO: ${shop.subscription_expiry ? shop.subscription_expiry.split('T')[0] : 'Permanent'}</div>
                     </td>
                     <td class="p-4">
-                        <div class="flex items-center gap-2">
-                            ${hwidDisplay}
-                            ${shop.active_device_id ? `
-                                <button onclick="resetHWID('${shop.id}', '${escapeQuotes(shop.shop_name)}')" class="text-slate-400 hover:text-amber-600 transition-colors p-1" title="Unbind Hardware Lock">
-                                    <i data-lucide="unlock" class="w-3.5 h-3.5"></i>
-                                </button>
-                            ` : ''}
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                ${hwidDisplay}
+                                ${shop.active_device_id ? `
+                                    <button onclick="resetHWID('${shop.id}', '${escapeQuotes(shop.shop_name)}')" class="text-slate-400 hover:text-amber-600 transition-colors p-1" title="Unbind Hardware Lock">
+                                        <i data-lucide="unlock" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                ${bridgePill}
+                                ${hwTelemetryBadge}
+                            </div>
                         </div>
                     </td>
                     <td class="p-4 text-right">
                         <div class="flex items-center justify-end gap-1.5 flex-wrap">
+                            <button onclick="openSuperadminTerminal('${shop.id}')" class="bg-slate-900 hover:bg-slate-800 active:scale-95 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-2xs" title="Open Bridge Terminal, Logs & RPC Dispatch">
+                                <i data-lucide="terminal" class="w-3.5 h-3.5 text-cyan-400"></i> Terminal
+                            </button>
                             <button onclick="modifyDays('${shop.id}', 30)" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1" title="Add 30 Days">
                                 <i data-lucide="plus" class="w-3 h-3"></i> 30d
                             </button>
@@ -738,6 +906,350 @@
             } catch (err) {
                 alert(err.message);
             }
+        }
+
+        // ==========================================
+        // SUPERADMIN BRIDGE TERMINAL & RPC CONTROLLER
+        // ==========================================
+        let terminalShopId = null;
+        let terminalPollInterval = null;
+        let terminalLogsCache = [];
+        let terminalCurrentFilter = 'all';
+
+        async function openSuperadminTerminal(shopId) {
+            terminalShopId = shopId;
+            terminalLogsCache = [];
+            terminalCurrentFilter = 'all';
+
+            const modal = document.getElementById('bridge-terminal-modal');
+            const shop = allTenants.find(t => t.id === shopId);
+
+            document.getElementById('term-shop-name').textContent = shop ? shop.shop_name : 'Shop ' + shopId.substring(0, 8);
+            document.getElementById('term-subdomain').textContent = shop ? `${shop.subdomain}.vercel.app (${shop.location || 'HQ'})` : shopId;
+            document.getElementById('term-link-status').innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Probing';
+            document.getElementById('term-hwid').textContent = 'Querying...';
+            document.getElementById('term-version').textContent = '...';
+            document.getElementById('term-queue').textContent = '...';
+            document.getElementById('term-hw-status').textContent = '...';
+            document.getElementById('term-devices-container').classList.add('hidden');
+            document.getElementById('term-devices-list').innerHTML = '';
+            document.getElementById('term-rpc-status').classList.add('hidden');
+            document.getElementById('term-log-pre').textContent = 'Fetching telemetry stream from Supabase...';
+            document.getElementById('term-log-count').textContent = '0 events';
+
+            modal.classList.remove('hidden');
+            if (window.lucide) { try { lucide.createIcons(); } catch(e){} }
+
+            await refreshCurrentTerminal(false);
+
+            const autoRefreshEl = document.getElementById('term-auto-refresh');
+            if (autoRefreshEl && autoRefreshEl.checked) {
+                startTerminalPolling();
+            }
+        }
+
+        function closeSuperadminTerminal() {
+            stopTerminalPolling();
+            document.getElementById('bridge-terminal-modal').classList.add('hidden');
+            terminalShopId = null;
+            terminalLogsCache = [];
+        }
+
+        function startTerminalPolling() {
+            stopTerminalPolling();
+            terminalPollInterval = setInterval(() => {
+                if (terminalShopId) {
+                    refreshCurrentTerminal(true);
+                }
+            }, 3000);
+        }
+
+        function stopTerminalPolling() {
+            if (terminalPollInterval) {
+                clearInterval(terminalPollInterval);
+                terminalPollInterval = null;
+            }
+        }
+
+        function toggleTerminalAutoRefresh(enabled) {
+            if (enabled) {
+                startTerminalPolling();
+            } else {
+                stopTerminalPolling();
+            }
+        }
+
+        async function refreshCurrentTerminal(isBackground = false) {
+            if (!terminalShopId || !supabaseClient) return;
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('printhub_shops')
+                    .select('id, shop_name, subdomain, active_device_id')
+                    .eq('id', terminalShopId)
+                    .single();
+
+                if (error) throw error;
+                if (!data) return;
+
+                let hwidRaw = data.active_device_id || '';
+                let parsed = null;
+                let lastTs = 0;
+                let clientVer = '1.3.0';
+                let hwidStr = 'Unbound';
+                let hwTelemetry = null;
+                let queueTelemetry = null;
+                let logs = [];
+                let cmdResult = null;
+
+                if (hwidRaw.startsWith('{')) {
+                    try {
+                        parsed = JSON.parse(hwidRaw);
+                        hwidStr = parsed.hwid || 'Unbound';
+                        lastTs = parseInt(parsed.ts || '0', 10);
+                        clientVer = parsed.version || '1.3.0';
+                        hwTelemetry = parsed.hardware || null;
+                        queueTelemetry = parsed.queue || null;
+                        logs = Array.isArray(parsed.logs) ? parsed.logs : [];
+                        cmdResult = parsed.cmd_result || null;
+                    } catch (e) {
+                        hwidStr = hwidRaw;
+                    }
+                } else if (hwidRaw.includes('|')) {
+                    const parts = hwidRaw.split('|');
+                    hwidStr = parts[0];
+                    lastTs = parseInt(parts[1] || '0', 10);
+                } else if (hwidRaw) {
+                    hwidStr = hwidRaw;
+                }
+
+                const nowSec = Date.now() / 1000;
+                const isOnline = lastTs > 0 && (nowSec - lastTs < 35);
+                const diffSec = lastTs > 0 ? Math.max(0, Math.round(nowSec - lastTs)) : null;
+
+                // Status pill
+                const linkStatusEl = document.getElementById('term-link-status');
+                if (isOnline) {
+                    linkStatusEl.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200";
+                    linkStatusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Online (${diffSec}s ago)`;
+                } else if (diffSec !== null) {
+                    linkStatusEl.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200";
+                    linkStatusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Offline (${diffSec}s ago)`;
+                } else {
+                    linkStatusEl.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200";
+                    linkStatusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Unbound`;
+                }
+
+                // HWID & Engine Version
+                document.getElementById('term-hwid').textContent = hwidStr !== 'Unbound' ? `${hwidStr.substring(0, 16)}...` : 'Unbound';
+                document.getElementById('term-hwid').title = hwidStr;
+                document.getElementById('term-version').textContent = `v${clientVer}`;
+
+                // Queue depth
+                const queueEl = document.getElementById('term-queue');
+                if (queueTelemetry) {
+                    queueEl.textContent = `${queueTelemetry.queued || 0} queued / ${queueTelemetry.spooling || 0} printing`;
+                } else {
+                    queueEl.textContent = '0 queued (Idle)';
+                }
+
+                // Hardware sensor
+                const hwStatusEl = document.getElementById('term-hw-status');
+                if (hwTelemetry) {
+                    if (hwTelemetry.status === 'error') {
+                        hwStatusEl.className = "text-xs font-bold text-rose-600 animate-pulse";
+                        hwStatusEl.textContent = `${(hwTelemetry.error_state || 'error').replace('_', ' ').toUpperCase()}: ${hwTelemetry.message || ''}`;
+                    } else if (hwTelemetry.status === 'warning') {
+                        hwStatusEl.className = "text-xs font-bold text-amber-600";
+                        hwStatusEl.textContent = `WARN: ${hwTelemetry.message || 'Attention required'}`;
+                    } else {
+                        hwStatusEl.className = "text-xs font-semibold text-emerald-700";
+                        hwStatusEl.textContent = hwTelemetry.message || 'Hardware Ready';
+                    }
+
+                    // Devices list
+                    if (Array.isArray(hwTelemetry.devices) && hwTelemetry.devices.length > 0) {
+                        const devContainer = document.getElementById('term-devices-container');
+                        const devList = document.getElementById('term-devices-list');
+                        devList.innerHTML = hwTelemetry.devices.map(d => `
+                            <div class="flex items-center justify-between py-1 border-b border-slate-200/50 last:border-0">
+                                <span class="font-bold text-slate-800">${escapeHtml(d.name || 'Printer')}</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded font-mono ${d.state === 'normal' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800 font-bold'}">${d.state.toUpperCase()}</span>
+                            </div>
+                        `).join('');
+                        devContainer.classList.remove('hidden');
+                    } else {
+                        document.getElementById('term-devices-container').classList.add('hidden');
+                    }
+                } else {
+                    hwStatusEl.className = "text-xs font-semibold text-slate-500";
+                    hwStatusEl.textContent = isOnline ? 'Hardware Ready' : 'Spooler Offline';
+                    document.getElementById('term-devices-container').classList.add('hidden');
+                }
+
+                // Command Result banner
+                const rpcBanner = document.getElementById('term-rpc-status');
+                if (cmdResult && cmdResult.status) {
+                    rpcBanner.className = `p-2.5 rounded-xl text-xs font-medium border ${cmdResult.status === 'completed' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'}`;
+                    rpcBanner.innerHTML = `<strong>Last RPC (${escapeHtml(cmdResult.action || 'cmd')}):</strong> ${escapeHtml(cmdResult.message || cmdResult.status)}`;
+                    rpcBanner.classList.remove('hidden');
+                }
+
+                // Render Logs
+                terminalLogsCache = logs;
+                renderTerminalLogs(logs);
+
+                document.getElementById('term-last-sync').textContent = `Sync: ${new Date().toLocaleTimeString()}`;
+
+            } catch (err) {
+                if (!isBackground) {
+                    console.error('Terminal refresh error:', err);
+                    showToast('Failed to poll bridge telemetry: ' + err.message, 'error');
+                }
+            }
+        }
+
+        function renderTerminalLogs(logs) {
+            const pre = document.getElementById('term-log-pre');
+            const countEl = document.getElementById('term-log-count');
+
+            if (!logs || logs.length === 0) {
+                pre.textContent = 'No telemetry events recorded yet. Bridge is idle.';
+                countEl.textContent = '0 events';
+                return;
+            }
+
+            let filtered = logs;
+            if (terminalCurrentFilter === 'errors') {
+                filtered = logs.filter(l => l.level === 'ERROR' || l.level === 'CRITICAL' || (l.msg && l.msg.toLowerCase().includes('fail')));
+            }
+
+            countEl.textContent = `${filtered.length} of ${logs.length} events`;
+
+            if (filtered.length === 0) {
+                pre.textContent = 'No error logs found in recent telemetry buffer.';
+                return;
+            }
+
+            pre.innerHTML = filtered.map(item => {
+                let colorClass = 'text-slate-300';
+                if (item.level === 'ERROR' || item.level === 'CRITICAL') {
+                    colorClass = 'text-rose-400 font-bold';
+                } else if (item.level === 'WARNING') {
+                    colorClass = 'text-amber-300 font-semibold';
+                } else if (item.msg && (item.msg.includes('SUCCESS') || item.msg.includes('Sent print job'))) {
+                    colorClass = 'text-emerald-400';
+                } else if (item.msg && item.msg.includes('Spooling order')) {
+                    colorClass = 'text-cyan-300';
+                }
+
+                const timeStr = item.time || new Date(item.ts * 1000).toLocaleTimeString();
+                return `<span class="text-slate-500">[${timeStr}]</span> <span class="text-slate-400 font-mono text-[10px] uppercase font-bold">[${item.level || 'INFO'}]</span> <span class="${colorClass}">${escapeHtml(item.msg || '')}</span>`;
+            }).join('\n');
+
+            pre.scrollTop = pre.scrollHeight;
+        }
+
+        function filterTerminalLogs(filterType) {
+            terminalCurrentFilter = filterType;
+            const btnAll = document.getElementById('btn-log-all');
+            const btnErr = document.getElementById('btn-log-err');
+
+            if (filterType === 'errors') {
+                btnErr.className = 'text-[11px] font-bold px-2 py-0.5 rounded bg-slate-900 text-white';
+                btnAll.className = 'text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200';
+            } else {
+                btnAll.className = 'text-[11px] font-bold px-2 py-0.5 rounded bg-slate-900 text-white';
+                btnErr.className = 'text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200';
+            }
+
+            renderTerminalLogs(terminalLogsCache);
+        }
+
+        function copyTerminalLogs() {
+            if (!terminalLogsCache || terminalLogsCache.length === 0) {
+                showToast('No logs to copy', 'error');
+                return;
+            }
+            const text = terminalLogsCache.map(l => `[${l.time || ''}] [${l.level || 'INFO'}] ${l.msg || ''}`).join('\n');
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Terminal logs copied to clipboard', 'success');
+            }).catch(() => {
+                showToast('Failed to copy to clipboard', 'error');
+            });
+        }
+
+        async function sendTerminalRpc(action, btnEl) {
+            if (!terminalShopId || !supabaseClient) return;
+
+            const prevHtml = btnEl.innerHTML;
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<div class="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin inline-block"></div> Queuing...';
+
+            const rpcStatusEl = document.getElementById('term-rpc-status');
+            rpcStatusEl.className = "p-2.5 rounded-xl text-xs font-medium border bg-blue-50 text-blue-800 border-blue-200";
+            rpcStatusEl.innerHTML = `<strong>Queuing RPC:</strong> Injecting action <code>${action}</code> into bridge state...`;
+            rpcStatusEl.classList.remove('hidden');
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('printhub_shops')
+                    .select('active_device_id')
+                    .eq('id', terminalShopId)
+                    .single();
+
+                if (error) throw error;
+
+                let deviceObj = {};
+                if (data.active_device_id) {
+                    try {
+                        deviceObj = JSON.parse(data.active_device_id);
+                    } catch (e) {
+                        deviceObj = { hwid: data.active_device_id };
+                    }
+                }
+
+                const cmdId = 'rpc_' + Date.now();
+                deviceObj.cmd = {
+                    id: cmdId,
+                    action: action,
+                    status: 'pending',
+                    issued_at: Math.floor(Date.now() / 1000)
+                };
+
+                const { error: updateErr } = await supabaseClient
+                    .from('printhub_shops')
+                    .update({ active_device_id: JSON.stringify(deviceObj) })
+                    .eq('id', terminalShopId);
+
+                if (updateErr) throw updateErr;
+
+                rpcStatusEl.className = "p-2.5 rounded-xl text-xs font-medium border bg-amber-50 text-amber-800 border-amber-200 animate-pulse";
+                rpcStatusEl.innerHTML = `<strong>RPC Dispatched:</strong> <code>${action}</code> queued. Waiting for bridge heartbeat execution...`;
+
+                showToast(`RPC command '${action}' sent to bridge`, 'success');
+
+                setTimeout(() => { refreshCurrentTerminal(true); }, 2500);
+
+            } catch (err) {
+                console.error('RPC send error:', err);
+                rpcStatusEl.className = "p-2.5 rounded-xl text-xs font-medium border bg-rose-50 text-rose-800 border-rose-200";
+                rpcStatusEl.innerHTML = `<strong>RPC Error:</strong> ${escapeHtml(err.message)}`;
+                showToast(`Failed to dispatch RPC: ${err.message}`, 'error');
+            } finally {
+                btnEl.disabled = false;
+                btnEl.innerHTML = prevHtml;
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         // ==========================================
