@@ -171,7 +171,7 @@ TEMP_DIR = os.path.join(_base_dir, "temp_print_spool")
 CONFIG_FILE = os.path.join(_base_dir, "shop_config.json")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-BRIDGE_VERSION = "1.3.0"
+BRIDGE_VERSION = "1.3.1"
 VERSION_MANIFEST_URL = "https://raw.githubusercontent.com/devakshay07/printhub-hybrid/main/version.json"
 
 def parse_semver(ver_str):

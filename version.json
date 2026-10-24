@@ -1,7 +1,7 @@
 {
-  "version": "1.3.0",
-  "published_at": "2026-10-24T10:15:00Z",
-  "notes": "Autonomous Windows auto-start, self-updating engine, and live telemetry",
+  "version": "1.3.1",
+  "published_at": "2026-10-24T12:45:00Z",
+  "notes": "Enterprise release: Native icon branding, Windows PE version metadata, duplex hardware routing, and hardened SQLite spool lifecycle",
   "download_url_exe": "https://github.com/devakshay07/printhub-hybrid/releases/latest/download/PrintBridge.exe",
   "download_url_py": "https://raw.githubusercontent.com/devakshay07/printhub-hybrid/main/print_bridge.py"
 }
