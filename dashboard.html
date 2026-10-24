@@ -1547,6 +1547,7 @@
             });
             return;
         }
+        if (window._spoolingOrders.has(orderId)) return;
         try {
             const bwEl = document.getElementById(`route_bw_${orderId}`);
             const colorEl = document.getElementById(`route_color_${orderId}`);
@@ -1573,14 +1574,19 @@
             });
 
             if (mode === 'manual') {
-                await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}`, 'PATCH', { status: 'Paid', notes: payload });
-                showToast({
-                    type: 'info',
-                    title: 'Edge Preview Triggered',
-                    message: `Order #${orderId.substring(0,8)} dispatched to manual Edge preview.`,
-                    duration: 3500
-                });
-                fetchOrders();
+                window._spoolingOrders.add(orderId);
+                try {
+                    await supabaseFetch(`/rest/v1/printhub_orders?id=eq.${orderId}`, 'PATCH', { status: 'Paid', notes: payload });
+                    showToast({
+                        type: 'info',
+                        title: 'Edge Preview Triggered',
+                        message: `Order #${orderId.substring(0,8)} dispatched to manual Edge preview.`,
+                        duration: 3500
+                    });
+                    fetchOrders();
+                } finally {
+                    window._spoolingOrders.delete(orderId);
+                }
                 return;
             }
 

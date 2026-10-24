@@ -719,40 +719,63 @@ QUEUE_DB_PATH = os.path.join(_base_dir, "spool_queue.db")
 _db_lock = threading.Lock()
 
 def get_queue_db():
-    conn = sqlite3.connect(QUEUE_DB_PATH, timeout=15)
+    conn = sqlite3.connect(QUEUE_DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=20000")
+    conn.execute("PRAGMA synchronous=NORMAL")
     return conn
+
+def db_execute(query, params=(), fetchone=False, fetchall=False, commit=False):
+    """Executes a SQLite query with guaranteed connection closure and lock synchronization."""
+    with _db_lock:
+        conn = get_queue_db()
+        try:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            if commit:
+                conn.commit()
+            if fetchone:
+                return cur.fetchone()
+            if fetchall:
+                return cur.fetchall()
+            return None
+        finally:
+            try: conn.close()
+            except: pass
 
 def init_sqlite_queue():
     """Initializes local spool queue database and recovers unconfirmed jobs."""
     try:
         with _db_lock:
             conn = get_queue_db()
-            with conn:
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS local_spool_queue (
-                        order_id TEXT PRIMARY KEY,
-                        shop_id TEXT NOT NULL,
-                        customer_name TEXT,
-                        customer_phone TEXT,
-                        total_amount REAL,
-                        status TEXT NOT NULL,
-                        notes TEXT,
-                        files_json TEXT,
-                        retry_count INTEGER DEFAULT 0,
-                        error_msg TEXT,
-                        created_at INTEGER NOT NULL,
-                        updated_at INTEGER NOT NULL
-                    )
-                """)
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_spool_status ON local_spool_queue(status)")
-                
-                # Crash recovery: reset intermediate states
-                conn.execute("UPDATE local_spool_queue SET status = 'QUEUED' WHERE status = 'DOWNLOADING'")
-                conn.execute("UPDATE local_spool_queue SET status = 'READY' WHERE status = 'SPOOLING'")
-            conn.close()
-            logger.info("Local-First SQLite Spool Queue online (spool_queue.db).")
+            try:
+                with conn:
+                    conn.execute("""
+                        CREATE TABLE IF NOT EXISTS local_spool_queue (
+                            order_id TEXT PRIMARY KEY,
+                            shop_id TEXT NOT NULL,
+                            customer_name TEXT,
+                            customer_phone TEXT,
+                            total_amount REAL,
+                            status TEXT NOT NULL,
+                            notes TEXT,
+                            files_json TEXT,
+                            retry_count INTEGER DEFAULT 0,
+                            error_msg TEXT,
+                            created_at INTEGER NOT NULL,
+                            updated_at INTEGER NOT NULL
+                        )
+                    """)
+                    conn.execute("CREATE INDEX IF NOT EXISTS idx_spool_status ON local_spool_queue(status)")
+                    
+                    # Crash recovery: reset intermediate states
+                    conn.execute("UPDATE local_spool_queue SET status = 'QUEUED' WHERE status = 'DOWNLOADING'")
+                    conn.execute("UPDATE local_spool_queue SET status = 'READY' WHERE status = 'SPOOLING'")
+            finally:
+                try: conn.close()
+                except: pass
+        logger.info("Local-First SQLite Spool Queue online (spool_queue.db).")
     except Exception as e:
         logger.error(f"Failed to initialize SQLite spool queue: {e}")
 
@@ -760,47 +783,38 @@ def enqueue_order_to_sqlite(order):
     """Enqueues order into local SQLite database for offline-resilient spooling."""
     order_id = order['id']
     now = int(time.time())
-    with _db_lock:
-        try:
-            conn = get_queue_db()
-            with conn:
-                cur = conn.cursor()
-                cur.execute("SELECT status FROM local_spool_queue WHERE order_id = ?", (order_id,))
-                row = cur.fetchone()
-                if not row:
-                    cur.execute("""
-                        INSERT INTO local_spool_queue 
-                        (order_id, shop_id, customer_name, customer_phone, total_amount, status, notes, files_json, retry_count, error_msg, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, 'QUEUED', ?, ?, 0, NULL, ?, ?)
-                    """, (
-                        order_id,
-                        order.get('shop_id', ''),
-                        order.get('customer_name', ''),
-                        order.get('customer_phone', ''),
-                        float(order.get('total_amount', 0.0) or 0.0),
-                        order.get('notes', ''),
-                        json.dumps([]),
-                        now,
-                        now
-                    ))
-                    logger.info(f"{Colors.GREEN}[QUEUE INGEST]{Colors.RESET} Order #{order_id[:8]} registered in SQLite Spool Queue.")
-            conn.close()
-        except Exception as e:
-            logger.error(f"Failed to enqueue order #{order_id[:8]}: {e}")
+    try:
+        existing = db_execute("SELECT status FROM local_spool_queue WHERE order_id = ?", (order_id,), fetchone=True)
+        if not existing:
+            db_execute("""
+                INSERT INTO local_spool_queue 
+                (order_id, shop_id, customer_name, customer_phone, total_amount, status, notes, files_json, retry_count, error_msg, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'QUEUED', ?, ?, 0, NULL, ?, ?)
+            """, (
+                order_id,
+                order.get('shop_id', ''),
+                order.get('customer_name', ''),
+                order.get('customer_phone', ''),
+                float(order.get('total_amount', 0.0) or 0.0),
+                order.get('notes', ''),
+                json.dumps([]),
+                now,
+                now
+            ), commit=True)
+            logger.info(f"{Colors.GREEN}[QUEUE INGEST]{Colors.RESET} Order #{order_id[:8]} registered in SQLite Spool Queue.")
+    except Exception as e:
+        logger.error(f"Failed to enqueue order #{order_id[:8]}: {e}")
 
 def get_queue_stats():
     """Returns real-time queue depth across all states."""
     stats = {"queued": 0, "ready": 0, "spooling": 0, "printed": 0}
     try:
-        with _db_lock:
-            conn = get_queue_db()
-            cur = conn.cursor()
-            cur.execute("SELECT status, count(*) FROM local_spool_queue WHERE status IN ('QUEUED', 'DOWNLOADING', 'READY', 'SPOOLING', 'PRINTED') GROUP BY status")
-            for row in cur.fetchall():
+        rows = db_execute("SELECT status, count(*) FROM local_spool_queue WHERE status IN ('QUEUED', 'DOWNLOADING', 'READY', 'SPOOLING', 'PRINTED') GROUP BY status", fetchall=True)
+        if rows:
+            for row in rows:
                 st = row[0].lower()
                 if st in stats:
                     stats[st] = row[1]
-            conn.close()
     except Exception:
         pass
     return stats
@@ -913,8 +927,11 @@ def spool_local_order(order_row, files_data):
                 cmd_args.extend(["-print-to-default"])
                 logger.info(f"{Colors.GREEN}Routing to Default Windows Printer{Colors.RESET}")
             
-            # Enforce page range if requested
+            # Enforce page range and duplex if requested
             settings_parts = [f"{copies}x", color_flag]
+            if "[DOUBLE_SIDED]" in notes_raw:
+                settings_parts.append("duplex")
+
             page_range = f_rec.get('page_range')
             if page_range and isinstance(page_range, str) and page_range.strip() and page_range.strip().lower() != 'all':
                 sanitized_range = "".join(c for c in page_range if c.isdigit() or c in ",-")
@@ -944,12 +961,7 @@ def spool_queue_worker():
     while True:
         try:
             # 1. Cloud Reconcile Loop: Sync PRINTED jobs back to Supabase
-            with _db_lock:
-                conn = get_queue_db()
-                cur = conn.cursor()
-                cur.execute("SELECT * FROM local_spool_queue WHERE status = 'PRINTED' LIMIT 5")
-                printed_rows = cur.fetchall()
-                conn.close()
+            printed_rows = db_execute("SELECT * FROM local_spool_queue WHERE status = 'PRINTED' LIMIT 5", fetchall=True) or []
 
             for row in printed_rows:
                 order_id = row['order_id']
@@ -976,22 +988,13 @@ def spool_queue_worker():
                             try: os.remove(lp)
                             except: pass
 
-                    with _db_lock:
-                        conn = get_queue_db()
-                        with conn:
-                            conn.execute("UPDATE local_spool_queue SET status = 'SYNCED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
-                        conn.close()
+                    db_execute("UPDATE local_spool_queue SET status = 'SYNCED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id), commit=True)
                     logger.info(f"{Colors.GREEN}[CLOUD SYNC CONFIRMED]{Colors.RESET} Order #{order_id[:8]} reconciled with Supabase.")
                 except Exception as sync_err:
                     logger.warning(f"Cloud uplink deferred for Order #{order_id[:8]} (Will retry): {sync_err}")
 
             # 2. Download Loop: Transition QUEUED -> READY
-            with _db_lock:
-                conn = get_queue_db()
-                cur = conn.cursor()
-                cur.execute("SELECT * FROM local_spool_queue WHERE status = 'QUEUED' ORDER BY created_at ASC LIMIT 1")
-                queued_row = cur.fetchone()
-                conn.close()
+            queued_row = db_execute("SELECT * FROM local_spool_queue WHERE status = 'QUEUED' ORDER BY created_at ASC LIMIT 1", fetchone=True)
 
             if queued_row:
                 order_id = queued_row['order_id']
@@ -999,11 +1002,7 @@ def spool_queue_worker():
 
                 # Productivity guard: If an order failed to download 3 times, fail it and proceed
                 if retry_count >= 3:
-                    with _db_lock:
-                        conn = get_queue_db()
-                        with conn:
-                            conn.execute("UPDATE local_spool_queue SET status = 'FAILED', error_msg = 'Aborted after 3 failed download attempts', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
-                        conn.close()
+                    db_execute("UPDATE local_spool_queue SET status = 'FAILED', error_msg = 'Aborted after 3 failed download attempts', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id), commit=True)
                     logger.error(f"Order #{order_id[:8]} exceeded download retry threshold. Deferring to prevent queue stall.")
                 else:
                     is_cancelled = False
@@ -1016,42 +1015,20 @@ def spool_queue_worker():
                         logger.warning(f"Could not verify cloud cancellation for #{order_id[:8]} ({net_check_err}). Proceeding.")
 
                     if is_cancelled:
-                        with _db_lock:
-                            conn = get_queue_db()
-                            with conn:
-                                conn.execute("UPDATE local_spool_queue SET status = 'CANCELLED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
-                            conn.close()
+                        db_execute("UPDATE local_spool_queue SET status = 'CANCELLED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id), commit=True)
                         logger.warning(f"Order #{order_id[:8]} was marked CANCELLED in cloud. Ignored.")
                     else:
                         try:
-                            with _db_lock:
-                                conn = get_queue_db()
-                                with conn:
-                                    conn.execute("UPDATE local_spool_queue SET status = 'DOWNLOADING', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
-                                conn.close()
-
+                            db_execute("UPDATE local_spool_queue SET status = 'DOWNLOADING', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id), commit=True)
                             files_data = download_order_files_for_queue(order_id)
-                            with _db_lock:
-                                conn = get_queue_db()
-                                with conn:
-                                    conn.execute("UPDATE local_spool_queue SET status = 'READY', files_json = ?, updated_at = ? WHERE order_id = ?", (json.dumps(files_data), int(time.time()), order_id))
-                                conn.close()
+                            db_execute("UPDATE local_spool_queue SET status = 'READY', files_json = ?, updated_at = ? WHERE order_id = ?", (json.dumps(files_data), int(time.time()), order_id), commit=True)
                             logger.info(f"Order #{order_id[:8]} cached locally [READY].")
                         except Exception as dl_err:
                             logger.error(f"Download failure for Order #{order_id[:8]}: {dl_err}")
-                            with _db_lock:
-                                conn = get_queue_db()
-                                with conn:
-                                    conn.execute("UPDATE local_spool_queue SET status = 'QUEUED', retry_count = retry_count + 1, error_msg = ?, updated_at = ? WHERE order_id = ?", (str(dl_err), int(time.time()), order_id))
-                                conn.close()
+                            db_execute("UPDATE local_spool_queue SET status = 'QUEUED', retry_count = retry_count + 1, error_msg = ?, updated_at = ? WHERE order_id = ?", (str(dl_err), int(time.time()), order_id), commit=True)
 
             # 3. Spool Loop: Transition READY -> PRINTED
-            with _db_lock:
-                conn = get_queue_db()
-                cur = conn.cursor()
-                cur.execute("SELECT * FROM local_spool_queue WHERE status = 'READY' ORDER BY created_at ASC LIMIT 1")
-                ready_row = cur.fetchone()
-                conn.close()
+            ready_row = db_execute("SELECT * FROM local_spool_queue WHERE status = 'READY' ORDER BY created_at ASC LIMIT 1", fetchone=True)
 
             if ready_row:
                 order_id = ready_row['order_id']
@@ -1064,11 +1041,7 @@ def spool_queue_worker():
                     logger.warning(f"Cloud cancellation check failed for #{order_id[:8]} ({net_check_err}). Printing anyway.")
 
                 if is_cancelled:
-                    with _db_lock:
-                        conn = get_queue_db()
-                        with conn:
-                            conn.execute("UPDATE local_spool_queue SET status = 'CANCELLED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
-                        conn.close()
+                    db_execute("UPDATE local_spool_queue SET status = 'CANCELLED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id), commit=True)
                     try:
                         f_list = json.loads(ready_row['files_json'] or '[]')
                         for f in f_list:
@@ -1077,29 +1050,16 @@ def spool_queue_worker():
                     except: pass
                     logger.warning(f"Order #{order_id[:8]} aborted before spool (Operator Cancelled).")
                 else:
-                    with _db_lock:
-                        conn = get_queue_db()
-                        with conn:
-                            conn.execute("UPDATE local_spool_queue SET status = 'SPOOLING', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
-                        conn.close()
+                    db_execute("UPDATE local_spool_queue SET status = 'SPOOLING', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id), commit=True)
 
                     try:
                         files_data = json.loads(ready_row['files_json'] or '[]')
                         spool_local_order(ready_row, files_data)
-
-                        with _db_lock:
-                            conn = get_queue_db()
-                            with conn:
-                                conn.execute("UPDATE local_spool_queue SET status = 'PRINTED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id))
-                            conn.close()
+                        db_execute("UPDATE local_spool_queue SET status = 'PRINTED', updated_at = ? WHERE order_id = ?", (int(time.time()), order_id), commit=True)
                         logger.info(f"{Colors.GREEN}[PHYSICAL PRINT COMPLETE]{Colors.RESET} Order #{order_id[:8]} printed.")
                     except Exception as spool_err:
                         logger.error(f"Hardware spool error for #{order_id[:8]}: {spool_err}")
-                        with _db_lock:
-                            conn = get_queue_db()
-                            with conn:
-                                conn.execute("UPDATE local_spool_queue SET status = 'FAILED', error_msg = ?, updated_at = ? WHERE order_id = ?", (str(spool_err), int(time.time()), order_id))
-                            conn.close()
+                        db_execute("UPDATE local_spool_queue SET status = 'FAILED', error_msg = ?, updated_at = ? WHERE order_id = ?", (str(spool_err), int(time.time()), order_id), commit=True)
 
         except Exception as q_err:
             logger.error(f"Error in Spool Queue worker: {q_err}")
@@ -1320,13 +1280,7 @@ def garbage_collector():
             now = time.time()
             active_paths = set()
             try:
-                with _db_lock:
-                    conn = get_queue_db()
-                    cur = conn.cursor()
-                    cur.execute("SELECT files_json FROM local_spool_queue WHERE status IN ('QUEUED', 'DOWNLOADING', 'READY', 'SPOOLING')")
-                    active_rows = cur.fetchall()
-                    conn.close()
-
+                active_rows = db_execute("SELECT files_json FROM local_spool_queue WHERE status IN ('QUEUED', 'DOWNLOADING', 'READY', 'SPOOLING')", fetchall=True) or []
                 for r in active_rows:
                     if r['files_json']:
                         try:
