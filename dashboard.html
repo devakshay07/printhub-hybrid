@@ -122,6 +122,9 @@
                         <span id="server-status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                             <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Offline
                         </span>
+                        <span id="bridge-version" class="hidden items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900" title="Connected Client Engine Version">
+                            <i data-lucide="cpu" class="w-3 h-3 text-blue-500"></i> <span id="bridge-version-text">v1.3.0</span>
+                        </span>
                         <span id="sub-status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                             <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Checking plan
                         </span>
@@ -990,14 +993,18 @@
 
                 const hwidStr = shopRes[0].active_device_id || '';
                 const serverStatus = document.getElementById('server-status');
+                const bridgeVerBadge = document.getElementById('bridge-version');
+                const bridgeVerText = document.getElementById('bridge-version-text');
                 
                 if (serverStatus) {
                     let lastHeartbeat = 0;
+                    let clientVersion = null;
                     if (hwidStr.startsWith('{')) {
                         try {
                             const parsed = JSON.parse(hwidStr);
                             lastHeartbeat = parseInt(parsed.ts || '0', 10);
                             window.globalPrinters = parsed.printers || [];
+                            clientVersion = parsed.version || null;
                         } catch(e) {}
                     } else if (hwidStr.includes('|')) {
                         lastHeartbeat = parseInt(hwidStr.split('|')[1] || '0', 10);
@@ -1008,13 +1015,31 @@
                         if (now - lastHeartbeat < 30) {
                             serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800";
                             serverStatus.innerHTML = '<span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span> Server Online';
+                            if (bridgeVerBadge && bridgeVerText) {
+                                if (clientVersion) {
+                                    bridgeVerText.textContent = `v${clientVersion}`;
+                                    bridgeVerBadge.classList.remove('hidden');
+                                    bridgeVerBadge.classList.add('inline-flex');
+                                } else {
+                                    bridgeVerBadge.classList.add('hidden');
+                                    bridgeVerBadge.classList.remove('inline-flex');
+                                }
+                            }
                         } else {
                             serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900";
                             serverStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Server Offline';
+                            if (bridgeVerBadge) {
+                                bridgeVerBadge.classList.add('hidden');
+                                bridgeVerBadge.classList.remove('inline-flex');
+                            }
                         }
                     } else {
                         serverStatus.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900";
                         serverStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Awaiting Signal';
+                        if (bridgeVerBadge) {
+                            bridgeVerBadge.classList.add('hidden');
+                            bridgeVerBadge.classList.remove('inline-flex');
+                        }
                     }
                 }
             }

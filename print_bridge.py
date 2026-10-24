@@ -145,6 +145,262 @@ TEMP_DIR = os.path.join(_base_dir, "temp_print_spool")
 CONFIG_FILE = os.path.join(_base_dir, "shop_config.json")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
+BRIDGE_VERSION = "1.3.0"
+VERSION_MANIFEST_URL = "https://raw.githubusercontent.com/devakshay07/printhub-hybrid/main/version.json"
+
+def parse_semver(ver_str):
+    """Parses version string into numeric tuple for clean comparison"""
+    try:
+        clean = str(ver_str).strip().lstrip('v').split('-')[0]
+        return tuple(map(int, clean.split('.')))
+    except Exception:
+        return (0, 0, 0)
+
+def ensure_autostart():
+    """
+    Guarantees the PrintHub Bridge launches automatically on system startup and user logon.
+    Supports both compiled PyInstaller binary (.exe) and raw script (python print_bridge.py).
+    Injects into:
+    1. Windows Registry (HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run)
+    2. Startup folder launcher script (PrintHubBridge.bat)
+    3. Windows Task Scheduler (onlogon task with highest available privileges)
+    """
+    if platform.system() != "Windows":
+        return
+
+    try:
+        is_frozen = getattr(sys, 'frozen', False)
+        if is_frozen:
+            target_exe = os.path.abspath(sys.executable)
+            launch_cmd = f'"{target_exe}"'
+            work_dir = os.path.dirname(target_exe)
+        else:
+            python_exe = os.path.abspath(sys.executable)
+            script_path = os.path.abspath(__file__)
+            launch_cmd = f'"{python_exe}" "{script_path}"'
+            work_dir = os.path.dirname(script_path)
+
+        # 1. Windows Registry Run key
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+            winreg.SetValueEx(key, "PrintHubBridge", 0, winreg.REG_SZ, launch_cmd)
+            winreg.CloseKey(key)
+            logger.info("Auto-start confirmed in Windows Registry.")
+        except Exception as reg_err:
+            logger.warning(f"Registry auto-start note: {reg_err}")
+
+        # 2. Windows Startup Folder Batch Script
+        try:
+            appdata = os.environ.get('APPDATA')
+            if appdata:
+                startup_dir = os.path.join(appdata, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
+                if os.path.exists(startup_dir):
+                    bat_path = os.path.join(startup_dir, 'PrintHubBridge.bat')
+                    bat_content = f'@echo off\nREM PrintHub Autonomous Auto-Start\ncd /d "{work_dir}"\nstart "" {launch_cmd}\n'
+                    with open(bat_path, 'w', encoding='utf-8') as f:
+                        f.write(bat_content)
+                    logger.info("Auto-start script confirmed in Startup folder.")
+        except Exception as bat_err:
+            logger.warning(f"Startup folder write note: {bat_err}")
+
+        # 3. Windows Task Scheduler (resilient against crash & logon)
+        try:
+            CREATE_NO_WINDOW = 0x08000000
+            escaped_cmd = launch_cmd.replace('"', '\\"')
+            sch_cmd = f'schtasks /create /tn "PrintHubBridge" /tr "{escaped_cmd}" /sc onlogon /f'
+            subprocess.run(sch_cmd, shell=True, capture_output=True, creationflags=CREATE_NO_WINDOW)
+        except Exception:
+            pass
+
+    except Exception as e:
+        logger.error(f"Failed to ensure auto-start: {e}")
+
+def cleanup_update_artifacts():
+    """Removes leftover *.old and temporary files from previous hot-swaps"""
+    try:
+        is_frozen = getattr(sys, 'frozen', False)
+        if is_frozen:
+            current_exe = os.path.abspath(sys.executable)
+            old_exe = f"{current_exe}.old"
+            if os.path.exists(old_exe):
+                try:
+                    os.remove(old_exe)
+                    logger.info("Cleaned up legacy executable (.old).")
+                except Exception:
+                    pass
+        else:
+            old_py = os.path.abspath(__file__) + ".old"
+            if os.path.exists(old_py):
+                try:
+                    os.remove(old_py)
+                    logger.info("Cleaned up legacy script (.old).")
+                except Exception:
+                    pass
+                    
+        upd_dir = os.path.join(_base_dir, "updates")
+        if os.path.exists(upd_dir):
+            now = time.time()
+            for fname in os.listdir(upd_dir):
+                fpath = os.path.join(upd_dir, fname)
+                try:
+                    if os.path.isfile(fpath) and (now - os.path.getmtime(fpath) > 86400):
+                        os.remove(fpath)
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Artifact cleanup note: {e}")
+
+_update_in_progress = False
+
+def execute_binary_hotswap(download_url):
+    """
+    Executes zero-downtime hot-swap on Windows for PyInstaller binary.
+    Overcomes Windows NTFS file lock by renaming the currently executing binary.
+    """
+    current_exe = os.path.abspath(sys.executable)
+    updates_dir = os.path.join(_base_dir, "updates")
+    os.makedirs(updates_dir, exist_ok=True)
+    temp_download = os.path.join(updates_dir, f"PrintBridge_{int(time.time())}.exe")
+
+    logger.info(f"Downloading binary update from {download_url}...")
+    resp = requests.get(download_url, stream=True, timeout=90)
+    if resp.status_code != 200:
+        raise RuntimeError(f"HTTP {resp.status_code} fetching binary update")
+
+    with open(temp_download, 'wb') as f:
+        for chunk in resp.iter_content(chunk_size=65536):
+            if chunk:
+                f.write(chunk)
+
+    download_size = os.path.getsize(temp_download)
+    if download_size < 500000:
+        if os.path.exists(temp_download):
+            os.remove(temp_download)
+        raise ValueError(f"Downloaded binary suspiciously small ({download_size} bytes). Aborting swap.")
+
+    old_exe = f"{current_exe}.old"
+    if os.path.exists(old_exe):
+        try:
+            os.remove(old_exe)
+        except Exception:
+            old_exe = f"{current_exe}.{int(time.time())}.old"
+
+    logger.info("Executing NTFS in-place binary swap...")
+    os.rename(current_exe, old_exe)
+    os.rename(temp_download, current_exe)
+
+    logger.info("Binary swap complete. Spawning upgraded PrintBridge process...")
+    CREATE_NEW_PROCESS_GROUP = 0x00000200
+    DETACHED_PROCESS = 0x00000008
+    creation_flags = (CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS) if platform.system() == "Windows" else 0
+
+    subprocess.Popen([current_exe] + sys.argv[1:], creationflags=creation_flags, close_fds=True)
+    logger.info("Handoff complete. Exiting legacy process.")
+    os._exit(0)
+
+def execute_script_hotswap(download_url):
+    """
+    Hot-swaps raw Python script and restarts interpreter.
+    """
+    current_script = os.path.abspath(__file__)
+    script_dir = os.path.dirname(current_script)
+    temp_script = os.path.join(script_dir, f".print_bridge_new_{int(time.time())}.py")
+
+    logger.info(f"Downloading script update from {download_url}...")
+    resp = requests.get(download_url, timeout=30)
+    if resp.status_code != 200:
+        raise RuntimeError(f"HTTP {resp.status_code} fetching script update")
+
+    with open(temp_script, 'w', encoding='utf-8') as f:
+        f.write(resp.text)
+
+    import py_compile
+    try:
+        py_compile.compile(temp_script, doraise=True)
+        logger.info("Script syntax validated successfully.")
+    except Exception as syn_err:
+        if os.path.exists(temp_script):
+            os.remove(temp_script)
+        raise RuntimeError(f"Syntax validation failed on downloaded update: {syn_err}")
+
+    old_script = f"{current_script}.old"
+    if os.path.exists(old_script):
+        try:
+            os.remove(old_script)
+        except Exception:
+            pass
+
+    os.rename(current_script, old_script)
+    os.rename(temp_script, current_script)
+
+    logger.info("Script swap complete. Restarting PrintBridge process...")
+    if platform.system() == "Windows":
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        DETACHED_PROCESS = 0x00000008
+        creation_flags = CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
+        subprocess.Popen([sys.executable, current_script] + sys.argv[1:], creationflags=creation_flags, close_fds=True)
+        os._exit(0)
+    else:
+        os.execv(sys.executable, [sys.executable, current_script] + sys.argv[1:])
+
+def check_for_updates():
+    """
+    Queries remote version manifest and applies update if newer version exists.
+    """
+    global _update_in_progress
+    if _update_in_progress:
+        return False
+        
+    try:
+        _update_in_progress = True
+        logger.info(f"Checking for updates against {VERSION_MANIFEST_URL} (Local: v{BRIDGE_VERSION})...")
+        resp = requests.get(VERSION_MANIFEST_URL, timeout=8)
+        if resp.status_code != 200:
+            logger.warning(f"Could not reach version manifest: HTTP {resp.status_code}")
+            return False
+
+        data = resp.json()
+        remote_ver_str = data.get("version", "0.0.0")
+        remote_ver = parse_semver(remote_ver_str)
+        local_ver = parse_semver(BRIDGE_VERSION)
+
+        if remote_ver > local_ver:
+            logger.info(f"{Colors.YELLOW}[UPDATE AVAILABLE] Found v{remote_ver_str} (Current: v{BRIDGE_VERSION}). Initiating autonomous upgrade...{Colors.RESET}")
+            is_frozen = getattr(sys, 'frozen', False)
+            if is_frozen:
+                download_url = data.get("download_url_exe")
+                if not download_url:
+                    logger.error("No download_url_exe in manifest.")
+                    return False
+                execute_binary_hotswap(download_url)
+            else:
+                download_url = data.get("download_url_py")
+                if not download_url:
+                    logger.error("No download_url_py in manifest.")
+                    return False
+                execute_script_hotswap(download_url)
+            return True
+        else:
+            logger.info(f"PrintBridge is up to date (v{BRIDGE_VERSION}).")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error during auto-update check: {e}")
+        return False
+    finally:
+        _update_in_progress = False
+
+def auto_update_worker():
+    """Background daemon checking for updates on boot and periodically every 30 minutes"""
+    time.sleep(12)
+    while True:
+        try:
+            check_for_updates()
+        except Exception as e:
+            logger.error(f"Auto-update daemon error: {e}")
+        time.sleep(1800)
+
 def get_local_config():
     if os.path.exists(CONFIG_FILE):
         try:
@@ -291,6 +547,13 @@ class ConfigHandler(BaseHTTPRequestHandler):
                         
                         <button type="submit">Save Hardware Routing</button>
                     </form>
+
+                    <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #64748b;">
+                        <div>Engine Version: <strong style="color: #0f172a;">v{BRIDGE_VERSION}</strong></div>
+                        <form method="POST" action="/update" style="margin: 0;">
+                            <button type="submit" style="background: #3b82f6; color: white; padding: 8px 16px; font-size: 12px; margin: 0; width: auto; border-radius: 6px;">Check for Updates</button>
+                        </form>
+                    </div>
                 </div>
             </body>
             </html>
@@ -298,6 +561,12 @@ class ConfigHandler(BaseHTTPRequestHandler):
             self.wfile.write(html.encode())
             
     def do_POST(self):
+        if self.path == '/update':
+            threading.Thread(target=check_for_updates, daemon=True).start()
+            self.send_response(303)
+            self.send_header('Location', '/')
+            self.end_headers()
+            return
         if self.path.startswith('/cleanup/'):
             order_id = self.path.split('/')[-1]
             # Delete local files for this order
@@ -532,8 +801,14 @@ def process_order(order):
 
 def main():
     print("=======================================")
-    print(" PRINT BRIDGE - HEADLESS AGENT ")
+    print(f" PRINTHUB BRIDGE - v{BRIDGE_VERSION} ")
     print("=======================================")
+    
+    # 1. Purge hot-swap artifacts from prior update
+    cleanup_update_artifacts()
+    
+    # 2. Spawn autonomous update worker thread
+    threading.Thread(target=auto_update_worker, daemon=True).start()
     
     email = os.environ.get('SHOP_EMAIL')
     password = os.environ.get('SHOP_PASSWORD')
@@ -579,28 +854,8 @@ def main():
             with open(cred_file, 'w') as f:
                 json.dump({'e': email, 'p': base64.b64encode(password.encode()).decode()}, f)
             
-            # Setup Windows Auto-Start if on Windows
-            if platform.system() == "Windows":
-                startup_dir = os.path.join(os.environ.get('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
-                vbs_path = os.path.join(startup_dir, 'PrintHubBridge.vbs')
-                exe_path = sys.executable
-                if exe_path.endswith('.exe'):
-                    # Create a visible batch file instead of hidden VBS
-                    bat_path = os.path.join(startup_dir, 'PrintHubBridge.bat')
-                    bat_content = f'@echo off\nstart "" "{exe_path}"'
-                    with open(bat_path, 'w') as f:
-                        f.write(bat_content)
-                        
-                    # Add to Windows Registry directly to launch the visible .exe
-                    try:
-                        import winreg
-                        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run', 0, winreg.KEY_SET_VALUE)
-                        winreg.SetValueEx(key, 'PrintHubBridge', 0, winreg.REG_SZ, f'"{exe_path}"')
-                        winreg.CloseKey(key)
-                    except Exception as reg_e:
-                        logger.warning(f"Failed to set Registry key (non-fatal): {reg_e}")
-                        
-                    print("\n[SUCCESS] Auto-start heavily secured! PrintBridge is injected into the Startup folder AND the Windows Registry.\n")
+        # Ensure auto-start persistence on every run
+        ensure_autostart()
                     
     except Exception as e:
         logger.error(f"Authentication failed: {e}")
@@ -716,7 +971,8 @@ def main():
                     "hwid": HWID,
                     "ts": current_time,
                     "printers": printers,
-                    "selected_printer": selected_printer if selected_printer in printers else (printers[0] if printers else None)
+                    "selected_printer": selected_printer if selected_printer in printers else (printers[0] if printers else None),
+                    "version": BRIDGE_VERSION
                 }
                 supabase.table('printhub_shops').update({'active_device_id': json.dumps(payload)}).eq('id', shop_id).execute()
                 last_heartbeat_time = current_time

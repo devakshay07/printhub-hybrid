@@ -4,7 +4,12 @@ on:
   push:
     paths:
       - 'print_bridge.py'
-  workflow_dispatch: # Allows manual trigger
+      - 'version.json'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -25,8 +30,21 @@ jobs:
     - name: Compile Windows Executable
       run: pyinstaller --onefile --name PrintBridge print_bridge.py
       
-    - name: Upload Windows EXE
+    - name: Upload Windows EXE Artifact
       uses: actions/upload-artifact@v4
       with:
         name: PrintBridge-Windows
         path: dist/PrintBridge.exe
+
+    - name: Publish to GitHub Releases
+      uses: softprops/action-gh-release@v2
+      if: github.ref == 'refs/heads/main'
+      with:
+        tag_name: latest
+        name: "PrintBridge Engine Latest"
+        body: "Automated production build of PrintBridge engine for Windows."
+        draft: false
+        prerelease: false
+        files: dist/PrintBridge.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
