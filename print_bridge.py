@@ -171,7 +171,7 @@ TEMP_DIR = os.path.join(_base_dir, "temp_print_spool")
 CONFIG_FILE = os.path.join(_base_dir, "shop_config.json")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-BRIDGE_VERSION = "1.3.1"
+BRIDGE_VERSION = "1.3.2"
 VERSION_MANIFEST_URL = "https://raw.githubusercontent.com/devakshay07/printhub-hybrid/main/version.json"
 
 def parse_semver(ver_str):
@@ -510,13 +510,13 @@ def rpc_test_print(target_printer=None):
         if platform.system() == "Windows":
             sumatra = ensure_sumatra()
             if sumatra and os.path.exists(sumatra):
-                cmd_args = [sumatra]
+                cmd_args = [sumatra, "-silent"]
                 if target_printer and target_printer != "Default Printer":
                     cmd_args.extend(["-print-to", target_printer])
                 else:
                     cmd_args.extend(["-print-to-default"])
                 cmd_args.extend(["-print-settings", "1x,monochrome", os.path.abspath(test_file)])
-                subprocess.run(cmd_args, shell=False, timeout=45, capture_output=True)
+                subprocess.run(cmd_args, shell=False, timeout=60, capture_output=True)
                 return True, f"Diagnostic test page successfully spooled to '{printer_label}'."
             else:
                 return False, "SumatraPDF engine not ready on host machine."
@@ -919,7 +919,7 @@ def spool_local_order(order_row, files_data):
             color_flag = "color" if is_color else "monochrome"
             target_printer = color_target if is_color else bw_target
             
-            cmd_args = [sumatra_exe]
+            cmd_args = [sumatra_exe, "-silent"]
             if target_printer and target_printer != "Default Printer":
                 cmd_args.extend(["-print-to", target_printer])
                 logger.info(f"{Colors.GREEN}Routing to hardware: {target_printer}{Colors.RESET}")
@@ -940,10 +940,10 @@ def spool_local_order(order_row, files_data):
 
             cmd_args.extend(["-print-settings", ",".join(settings_parts), abs_path])
             try:
-                subprocess.run(cmd_args, shell=False, timeout=60, capture_output=True)
+                subprocess.run(cmd_args, shell=False, timeout=120, capture_output=True)
                 logger.info(f"{Colors.GREEN}Successfully spooled {fname}.{Colors.RESET}")
             except subprocess.TimeoutExpired:
-                logger.error(f"SumatraPDF timed out (60s) while spooling {fname}")
+                logger.error(f"SumatraPDF timed out (120s) while spooling {fname}")
                 raise TimeoutError(f"Print engine timed out while spooling {fname}")
         else:
             if platform.system() == "Windows":

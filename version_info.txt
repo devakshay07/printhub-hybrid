@@ -4,8 +4,8 @@
 #
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 3, 1, 0),
-    prodvers=(1, 3, 1, 0),
+    filevers=(1, 3, 2, 0),
+    prodvers=(1, 3, 2, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -21,12 +21,12 @@ VSVersionInfo(
           [
             StringStruct('CompanyName', 'PRINTHub Technologies'),
             StringStruct('FileDescription', 'PRINTHub Universal Hardware Print Bridge & Daemon Engine'),
-            StringStruct('FileVersion', '1.3.1.0'),
+            StringStruct('FileVersion', '1.3.2.0'),
             StringStruct('InternalName', 'PrintBridge'),
             StringStruct('LegalCopyright', 'Copyright (C) 2026 PRINTHub Technologies. All rights reserved.'),
             StringStruct('OriginalFilename', 'PrintBridge.exe'),
             StringStruct('ProductName', 'PRINTHub Enterprise Print Engine'),
-            StringStruct('ProductVersion', '1.3.1.0')
+            StringStruct('ProductVersion', '1.3.2.0')
           ]
         )
       ]
